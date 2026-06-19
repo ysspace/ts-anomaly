@@ -1,0 +1,3130 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>시계열 프로젝트</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <style>
+    :root {
+      --ink: #182230;
+      --muted: #667085;
+      --line: #d9e2ec;
+      --soft: #f4f7fb;
+      --panel: #ffffff;
+      --blue: #246bfe;
+      --teal: #0e9384;
+      --coral: #e5484d;
+      --amber: #d9822b;
+      --violet: #6e56cf;
+      --green: #16a34a;
+      --shadow: 0 14px 30px rgba(24, 34, 48, 0.08);
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif;
+      background: #eef3f8;
+      color: var(--ink);
+      letter-spacing: 0;
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    input[type="range"] { accent-color: var(--blue); width: 100%; }
+    .app-shell {
+      display: grid;
+      grid-template-columns: 328px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    aside {
+      background: #111827;
+      color: #f8fafc;
+      padding: 22px 18px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+    }
+    main {
+      min-width: 0;
+      padding: 24px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #2dd4bf, #246bfe 58%, #f97316);
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+    .brand p { margin: 3px 0 0; color: #cbd5e1; font-size: 12px; }
+    .upload-box {
+      border: 1px dashed #64748b;
+      border-radius: var(--radius);
+      padding: 18px;
+      background: rgba(255, 255, 255, 0.06);
+      transition: border-color .18s, background .18s;
+    }
+    .upload-box.dragover {
+      border-color: #2dd4bf;
+      background: rgba(45, 212, 191, 0.11);
+    }
+    .upload-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .upload-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.1);
+      color: #93c5fd;
+      flex: 0 0 auto;
+    }
+    .upload-title { font-size: 14px; font-weight: 800; }
+    .upload-sub { color: #cbd5e1; font-size: 12px; margin-top: 3px; line-height: 1.45; }
+    .file-input { display: none; }
+    .btn-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+    .btn {
+      border: 0;
+      border-radius: 8px;
+      min-height: 38px;
+      padding: 0 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-weight: 800;
+      color: #0f172a;
+      background: #f8fafc;
+    }
+    .btn.primary { color: #ffffff; background: var(--blue); }
+    .btn.ghost { color: #e2e8f0; background: rgba(255, 255, 255, 0.1); }
+    .btn.icon { width: 38px; padding: 0; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .preset-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+      margin-top: 9px;
+    }
+    .preset-btn {
+      min-height: 31px;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      background: #0f172a;
+      color: #cbd5e1;
+      font-size: 11px;
+      font-weight: 850;
+    }
+    .preset-btn.active {
+      border-color: #60a5fa;
+      background: rgba(37, 99, 235, 0.2);
+      color: #ffffff;
+    }
+    .dataset-note {
+      margin-top: 13px;
+      padding: 10px 11px;
+      border-radius: 8px;
+      background: rgba(45, 212, 191, 0.09);
+      color: #c8fff5;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .dataset-note b { color: #ffffff; }
+    .section-title {
+      margin: 22px 0 10px;
+      font-size: 12px;
+      color: #94a3b8;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+    .field {
+      margin-bottom: 14px;
+    }
+    .field label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: #e2e8f0;
+      margin-bottom: 7px;
+      font-weight: 750;
+    }
+    .hint { color: #94a3b8; font-size: 12px; font-weight: 600; }
+    .control, select, input[type="number"] {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 8px 10px;
+      outline: none;
+    }
+    select:focus, input:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
+    }
+    .var-list {
+      max-height: 210px;
+      overflow: auto;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      background: #0f172a;
+      padding: 6px;
+    }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 31px;
+      padding: 4px 5px;
+      color: #e2e8f0;
+      font-size: 13px;
+      border-radius: 6px;
+      word-break: break-word;
+    }
+    .check-row:hover { background: rgba(255, 255, 255, 0.06); }
+    .check-row input { accent-color: #2dd4bf; }
+    .range-value {
+      display: flex;
+      justify-content: space-between;
+      color: #cbd5e1;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+    .topbar h2 {
+      margin: 0;
+      font-size: 27px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    .topbar p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      line-height: 1.55;
+      max-width: 860px;
+      font-size: 14px;
+    }
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 34px;
+      padding: 0 11px;
+      border-radius: 999px;
+      background: #e7f7f3;
+      color: #087f6f;
+      font-weight: 900;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .view-tabs {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px;
+      margin-bottom: 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #ffffff;
+      box-shadow: var(--shadow);
+      overflow-x: auto;
+    }
+    .view-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 36px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .view-tab.active {
+      background: var(--ink);
+      color: #ffffff;
+    }
+    .view-tab:hover:not(.active) {
+      background: #eef4ff;
+      color: #1d4ed8;
+    }
+    .metric-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      min-height: 104px;
+      padding: 15px;
+      display: grid;
+      align-content: space-between;
+      min-width: 0;
+    }
+    .metric-card .label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }
+    .metric-card .value {
+      font-size: clamp(22px, 2vw, 28px);
+      font-weight: 900;
+      letter-spacing: 0;
+      line-height: 1.18;
+      margin-top: 7px;
+      overflow-wrap: anywhere;
+    }
+    .metric-card .sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+      line-height: 1.35;
+    }
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 14px;
+      align-items: start;
+      grid-auto-flow: row dense;
+    }
+    .dashboard-grid > section {
+      display: contents;
+    }
+    .layout-span-12 { grid-column: span 12; }
+    .layout-span-8 { grid-column: span 8; }
+    .layout-span-6 { grid-column: span 6; }
+    .layout-span-4 { grid-column: span 4; }
+    .layout-order-1 { order: 1; }
+    .layout-order-2 { order: 2; }
+    .layout-order-3 { order: 3; }
+    .layout-order-4 { order: 4; }
+    .layout-order-5 { order: 5; }
+    .layout-order-6 { order: 6; }
+    .layout-order-7 { order: 7; }
+    .layout-order-8 { order: 8; }
+    .layout-order-9 { order: 9; }
+    .layout-order-10 { order: 10; }
+    .layout-order-11 { order: 11; }
+    .layout-order-12 { order: 12; }
+    .layout-order-13 { order: 13; }
+    .layout-order-14 { order: 14; }
+    .layout-order-15 { order: 15; }
+    .layout-order-16 { order: 16; }
+    .layout-order-17 { order: 17; }
+    .layout-order-18 { order: 18; }
+    .layout-order-19 { order: 19; }
+    .layout-order-20 { order: 20; }
+    .dashboard-grid .panel {
+      margin-bottom: 0;
+      align-self: start;
+    }
+    .dashboard-grid .split-2 {
+      margin-bottom: 0;
+      align-items: start;
+      align-self: start;
+    }
+    .dashboard-grid .split-2 > .panel {
+      height: auto;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 14px;
+      overflow: hidden;
+      min-width: 0;
+    }
+    .panel-head {
+      min-height: 52px;
+      padding: 13px 15px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-weight: 900;
+      font-size: 15px;
+      line-height: 1.35;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+    .panel-title .mini {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    .panel-body { padding: 14px 15px; }
+    .plot {
+      width: 100%;
+      height: 360px;
+      min-width: 0;
+    }
+    .plot.short { height: 250px; }
+    .plot.tall { height: 440px; }
+    .layout-order-1 .plot.tall { height: 560px; }
+    .layout-order-3 .plot.short { height: 430px; }
+    #dashboard[data-active-view]:not([data-active-view="all"]) .dashboard-grid {
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+    #dashboard[data-active-view]:not([data-active-view="all"]) .dashboard-grid [data-view-group] {
+      grid-column: 1 / -1 !important;
+      height: auto;
+    }
+    #dashboard[data-active-view]:not([data-active-view="all"]) .dashboard-grid .panel {
+      height: auto;
+    }
+    #dashboard[data-active-view]:not([data-active-view="all"]) .layout-order-1 .plot.tall {
+      height: 520px;
+    }
+    #dashboard[data-active-view]:not([data-active-view="all"]) .layout-order-3 .plot.short {
+      height: 300px;
+    }
+    .split-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .split-2 > .panel {
+      min-width: 0;
+    }
+    .is-hidden { display: none !important; }
+    .tabs {
+      display: flex;
+      gap: 6px;
+      background: #eef3f8;
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+    }
+    .tab {
+      border: 0;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      background: transparent;
+      font-weight: 850;
+    }
+    .tab.active { color: #ffffff; background: var(--ink); }
+    .info-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .info-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px;
+      min-height: 74px;
+      background: #fbfdff;
+    }
+    .info-item .k { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .info-item .v { margin-top: 5px; font-weight: 900; word-break: break-word; overflow-wrap: anywhere; line-height: 1.28; }
+    .callout {
+      border-left: 4px solid var(--teal);
+      background: #ecfdf7;
+      padding: 12px 13px;
+      border-radius: 8px;
+      line-height: 1.62;
+      color: #134e4a;
+      font-size: 13px;
+    }
+    .callout.warning {
+      border-left-color: var(--amber);
+      background: #fff7ed;
+      color: #7c2d12;
+    }
+    .report-title {
+      font-size: 15px;
+      font-weight: 950;
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+    .report-lead {
+      line-height: 1.68;
+      margin-bottom: 12px;
+    }
+    .report-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+      margin: 11px 0;
+    }
+    .report-cell {
+      border: 1px solid rgba(14, 147, 132, 0.18);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.58);
+      padding: 10px;
+      min-width: 0;
+    }
+    .report-cell b {
+      display: block;
+      color: var(--ink);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .report-cell span {
+      display: block;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+    .report-list {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      line-height: 1.65;
+    }
+    .report-list li + li { margin-top: 4px; }
+    .data-picks {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .data-pick {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px;
+      background: #fbfdff;
+      min-width: 0;
+    }
+    .data-pick .name {
+      font-weight: 950;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+    .data-pick .desc {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin-top: 5px;
+    }
+    .table-wrap {
+      overflow: auto;
+      max-height: 420px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 680px;
+      font-size: 12px;
+    }
+    th, td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8fafc;
+      z-index: 1;
+      color: #475467;
+      font-weight: 900;
+    }
+    tr:hover td { background: #fbfdff; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #eef4ff;
+      color: #1d4ed8;
+      font-weight: 850;
+      font-size: 12px;
+    }
+    .badge.red { background: #fff1f2; color: #be123c; }
+    .badge.green { background: #ecfdf3; color: #047857; }
+    .badge.amber { background: #fffbeb; color: #b45309; }
+    .empty {
+      display: grid;
+      place-items: center;
+      min-height: 420px;
+      text-align: center;
+      color: var(--muted);
+      padding: 28px;
+    }
+    .empty-icon {
+      width: 64px;
+      height: 64px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: #e8eef7;
+      color: var(--blue);
+      margin: 0 auto 14px;
+    }
+    .empty h3 { margin: 0 0 7px; color: var(--ink); }
+    .empty p { margin: 0; line-height: 1.55; max-width: 560px; }
+    .compare-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .quality-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .insight-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .quality-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfdff;
+      min-width: 0;
+    }
+    .quality-item .name {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }
+    .quality-item .value {
+      margin-top: 7px;
+      font-size: 22px;
+      font-weight: 950;
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+    }
+    .quality-item .desc {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 4px;
+      line-height: 1.35;
+    }
+    .insight-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfdff;
+      min-width: 0;
+    }
+    .insight-item .name {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }
+    .insight-item .value {
+      margin-top: 7px;
+      font-size: 18px;
+      font-weight: 950;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+    .insight-item .desc {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 5px;
+      line-height: 1.45;
+    }
+    .compare-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfdff;
+    }
+    .compare-item .name { font-weight: 900; }
+    .compare-item .count { margin-top: 8px; font-size: 22px; font-weight: 950; }
+    .compare-item .desc { color: var(--muted); font-size: 12px; margin-top: 3px; }
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      background: #111827;
+      color: #f8fafc;
+      padding: 12px 14px;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      display: none;
+      z-index: 20;
+      max-width: 420px;
+      line-height: 1.45;
+      font-size: 13px;
+    }
+    .toast.show { display: block; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 1180px) {
+      .app-shell { grid-template-columns: 1fr; }
+      aside {
+        position: static;
+        height: auto;
+      }
+      main { padding: 18px; }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .dashboard-grid { grid-template-columns: 1fr; }
+      .layout-span-12, .layout-span-8, .layout-span-6, .layout-span-4 { grid-column: 1 / -1; }
+    }
+    @media (min-width: 1181px) and (max-width: 1380px) {
+      .dashboard-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .topbar { flex-direction: column; }
+      .summary-grid, .split-2, .info-list, .compare-grid, .quality-grid, .insight-grid, .data-picks { grid-template-columns: 1fr; }
+      .report-grid { grid-template-columns: 1fr; }
+      .plot, .plot.tall { height: 320px; }
+      .plot.short { height: 240px; }
+      main { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside>
+      <div class="brand">
+        <div class="brand-mark"><i data-lucide="activity"></i></div>
+        <div>
+          <h1>시계열 프로젝트<br />이상탐지</h1>
+          <p>CSV 업로드 후 자동 분석</p>
+        </div>
+      </div>
+
+      <div id="dropZone" class="upload-box">
+        <div class="upload-row">
+          <div class="upload-icon"><i data-lucide="upload-cloud"></i></div>
+          <div>
+            <div class="upload-title">다변량 CSV 불러오기</div>
+            <div class="upload-sub" id="fileName">날짜/시간 열과 숫자형 변수를 자동 인식합니다.</div>
+          </div>
+        </div>
+        <input id="fileInput" class="file-input" type="file" accept=".csv,text/csv" />
+        <div class="btn-row">
+          <button id="uploadBtn" class="btn primary" type="button"><i data-lucide="folder-open"></i>파일 선택</button>
+          <button id="demoBtn" class="btn ghost" type="button"><i data-lucide="database"></i>데모 데이터</button>
+        </div>
+        <div class="dataset-note">
+          메인 분석 CSV: <b>air_quality_uci_multivariate.csv</b><br />
+          비교 분석 CSV: <b>nyc_taxi_nab_multivariate.csv</b>
+        </div>
+      </div>
+
+      <div class="section-title">탐지 설정</div>
+      <div class="field">
+        <label for="algorithmSelect">알고리즘 <span class="hint" id="methodHint">자동 추천</span></label>
+        <select id="algorithmSelect">
+          <option value="auto">자동 추천</option>
+          <option value="zscore">Z-score</option>
+          <option value="iqr">IQR</option>
+          <option value="rolling">Moving Average</option>
+          <option value="hampel">Hampel Filter</option>
+          <option value="stl">STL-like 분해</option>
+          <option value="ewma">EWMA 잔차</option>
+          <option value="cusum">CUSUM 변화 누적</option>
+          <option value="changepoint">변화점 탐지</option>
+          <option value="pca">PCA Reconstruction</option>
+          <option value="knn">KNN Distance</option>
+          <option value="isolation">Isolation Forest</option>
+          <option value="lof">Local Outlier Factor</option>
+          <option value="ensemble">앙상블 비교</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="thresholdRange">Threshold percentile <span class="hint" id="thresholdLabel">97.5%</span></label>
+        <input id="thresholdRange" type="range" min="80" max="99.5" step="0.5" value="97.5" />
+        <div class="range-value"><span>느슨함</span><span>엄격함</span></div>
+        <div class="preset-row" id="thresholdPresets" aria-label="Threshold 빠른 선택">
+          <button class="preset-btn" type="button" data-threshold="95">넓게 95%</button>
+          <button class="preset-btn" type="button" data-threshold="97.5">기본 97.5%</button>
+          <button class="preset-btn" type="button" data-threshold="99">엄격 99%</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="windowInput">Rolling window <span class="hint">관측치 수</span></label>
+        <input id="windowInput" type="number" min="3" max="500" step="1" value="24" />
+      </div>
+
+      <div class="field">
+        <label for="seasonInput">계절 주기 <span class="hint">0은 자동</span></label>
+        <input id="seasonInput" type="number" min="0" max="1000" step="1" value="0" />
+      </div>
+
+      <div class="field">
+        <label for="aggregateSelect">다변량 점수 집계</label>
+        <select id="aggregateSelect">
+          <option value="max">최대값 OR</option>
+          <option value="mean">평균값</option>
+        </select>
+      </div>
+
+      <div class="section-title">분석 대상 변수</div>
+      <div class="field">
+        <label for="focusSelect">그래프 기준 변수</label>
+        <select id="focusSelect"></select>
+      </div>
+      <div class="btn-row">
+        <button id="selectAllBtn" class="btn ghost" type="button"><i data-lucide="check-square"></i>전체</button>
+        <button id="clearVarsBtn" class="btn ghost" type="button"><i data-lucide="square"></i>해제</button>
+      </div>
+      <div id="varList" class="var-list" aria-label="변수 선택"></div>
+    </aside>
+
+    <main>
+      <div class="topbar">
+        <div>
+          <h2>시계열 프로젝트: CSV 이상탐지 웹앱</h2>
+          <p>시간 인덱스, 숫자형 변수, 결측치, 중복, 샘플링 주기, 추세, 계절성, 정상성, 상관관계를 자동 진단하고 이상 점수와 threshold 기반 탐지 결과를 대시보드로 보여줍니다.</p>
+        </div>
+        <div class="status-chip" id="statusChip"><i data-lucide="circle-dot"></i>대기 중</div>
+      </div>
+
+      <div id="emptyState" class="panel empty">
+        <div>
+          <div class="empty-icon"><i data-lucide="line-chart"></i></div>
+          <h3>CSV 파일을 업로드하면 분석이 시작됩니다</h3>
+          <p>메인 분석 데이터는 같은 폴더의 air_quality_uci_multivariate.csv입니다. 날짜 열이 없는 CSV도 행 번호 기준 시계열로 분석됩니다.</p>
+        </div>
+      </div>
+
+      <div id="dashboard" style="display:none">
+        <div class="view-tabs" id="viewTabs" aria-label="대시보드 보기 전환">
+          <button class="view-tab active" data-dashboard-view="all" type="button"><i data-lucide="layout-dashboard"></i>전체</button>
+          <button class="view-tab" data-dashboard-view="overview" type="button"><i data-lucide="clipboard-check"></i>개요</button>
+          <button class="view-tab" data-dashboard-view="detect" type="button"><i data-lucide="crosshair"></i>탐지 결과</button>
+          <button class="view-tab" data-dashboard-view="diagnostic" type="button"><i data-lucide="scan-search"></i>데이터 진단</button>
+          <button class="view-tab" data-dashboard-view="compare" type="button"><i data-lucide="layers"></i>방법 비교</button>
+          <button class="view-tab" data-dashboard-view="anomalies" type="button"><i data-lucide="table-2"></i>이상 목록</button>
+        </div>
+
+        <div class="summary-grid" id="summaryGrid" data-view-group="all overview detect"></div>
+
+        <div class="dashboard-grid">
+          <section>
+            <div class="panel layout-span-8 layout-order-1" data-view-group="all overview detect">
+              <div class="panel-head">
+                <div class="panel-title"><i data-lucide="line-chart"></i>원본 시계열 및 이상점 <span class="mini" id="chartMini"></span></div>
+                <div class="tabs">
+                  <button class="tab active" data-view="series" type="button">시계열</button>
+                  <button class="tab" data-view="scores" type="button">점수</button>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div id="seriesChart" class="plot tall"></div>
+                <div id="scoreChart" class="plot tall" style="display:none"></div>
+              </div>
+            </div>
+
+            <div class="split-2 layout-span-8 layout-order-3" data-view-group="all detect compare">
+              <div class="panel">
+                <div class="panel-head"><div class="panel-title"><i data-lucide="bar-chart-3"></i>변수별 이상 개수</div></div>
+                <div class="panel-body"><div id="countChart" class="plot short"></div></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><div class="panel-title"><i data-lucide="sliders-horizontal"></i>Threshold 민감도</div></div>
+                <div class="panel-body"><div id="thresholdChart" class="plot short"></div></div>
+              </div>
+            </div>
+
+            <div class="split-2 layout-span-8 layout-order-8" data-view-group="all diagnostic">
+              <div class="panel">
+                <div class="panel-head"><div class="panel-title"><i data-lucide="waves"></i>Rolling mean/std</div></div>
+                <div class="panel-body"><div id="rollingChart" class="plot short"></div></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><div class="panel-title"><i data-lucide="git-branch"></i>추세/계절/잔차 분해</div></div>
+                <div class="panel-body"><div id="decompChart" class="plot short"></div></div>
+              </div>
+            </div>
+
+            <div class="panel layout-span-12 layout-order-15" data-view-group="all anomalies">
+              <div class="panel-head">
+                <div class="panel-title"><i data-lucide="table-2"></i>탐지된 이상 구간</div>
+                <button id="exportBtn" class="btn icon" type="button" title="이상 목록 CSV 저장"><i data-lucide="download"></i><span class="sr-only">CSV 저장</span></button>
+              </div>
+              <div class="panel-body"><div id="anomalyTable"></div></div>
+            </div>
+
+            <div class="panel layout-span-6 layout-order-13" data-view-group="all anomalies overview">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="list-tree"></i>이상 구간 요약</div></div>
+              <div class="panel-body"><div id="segmentTable"></div></div>
+            </div>
+
+            <div class="panel layout-span-6 layout-order-14" data-view-group="all anomalies detect overview">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="message-square-text"></i>이상 원인 설명</div></div>
+              <div class="panel-body"><div id="causeTable"></div></div>
+            </div>
+          </section>
+
+          <section>
+            <div class="panel layout-span-4 layout-order-2" data-view-group="all overview">
+              <div class="panel-head">
+                <div class="panel-title"><i data-lucide="clipboard-check"></i>결과 해석</div>
+                <button id="reportBtn" class="btn icon" type="button" title="분석 리포트 저장"><i data-lucide="file-down"></i><span class="sr-only">분석 리포트 저장</span></button>
+              </div>
+              <div class="panel-body"><div id="interpretation" class="callout"></div></div>
+            </div>
+
+            <div class="panel layout-span-4 layout-order-4" data-view-group="all overview compare">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="brain-circuit"></i>모델 판단 근거</div></div>
+              <div class="panel-body"><div id="modelGuide" class="insight-grid"></div></div>
+            </div>
+
+            <div class="panel layout-span-4 layout-order-5" data-view-group="all overview diagnostic">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="shield-check"></i>데이터 품질 판정</div></div>
+              <div class="panel-body"><div id="dataQuality" class="insight-grid"></div></div>
+            </div>
+
+            <div class="panel layout-span-4 layout-order-6" data-view-group="all overview compare">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="gauge"></i>탐지 품질 지표</div></div>
+              <div class="panel-body"><div id="qualityGrid" class="quality-grid"></div></div>
+            </div>
+
+            <div class="panel layout-span-4 layout-order-7" data-view-group="all overview">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="database-zap"></i>분석 데이터 구성</div></div>
+              <div class="panel-body">
+                <div class="callout">
+                  제출 시연의 메인 데이터는 <b>air_quality_uci_multivariate.csv</b>입니다.
+                  시간 컬럼과 여러 센서 변수를 포함하여 다변량 시계열 구조, 결측치 진단, 상관관계 분석, threshold 민감도 비교를 함께 확인할 수 있습니다.
+                </div>
+                <div class="data-picks">
+                  <div class="data-pick">
+                    <div class="name">air_quality_uci_multivariate.csv</div>
+                    <div class="desc">UCI Air Quality 기반. 시간별 대기질 센서 다변량 데이터이며 결측치와 변수 간 상관 구조를 포함합니다.</div>
+                  </div>
+                  <div class="data-pick">
+                    <div class="name">nyc_taxi_nab_multivariate.csv</div>
+                    <div class="desc">NAB NYC Taxi 기반. 승객 수 원자료에 rolling, diff, 시간대 변수를 추가한 비교 분석용 데이터입니다.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel layout-span-4 layout-order-9" data-view-group="all diagnostic">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="scan-search"></i>데이터 자동 인식</div></div>
+              <div class="panel-body"><div class="info-list" id="dataInfo"></div></div>
+            </div>
+
+            <div class="panel layout-span-4 layout-order-10" data-view-group="all detect compare">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="scatter-chart"></i>이상 점수 분포</div></div>
+              <div class="panel-body"><div id="histChart" class="plot short"></div></div>
+            </div>
+
+            <div class="panel layout-span-4 layout-order-11" data-view-group="all diagnostic">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="grid-3x3"></i>변수 간 상관관계</div></div>
+              <div class="panel-body"><div id="corrChart" class="plot short"></div></div>
+            </div>
+
+            <div class="panel layout-span-4 layout-order-12" data-view-group="all diagnostic">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="badge-alert"></i>결측치 현황</div></div>
+              <div class="panel-body"><div id="missingChart" class="plot short"></div></div>
+            </div>
+
+            <div class="panel layout-span-6 layout-order-16" data-view-group="all compare">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="layers"></i>방법 비교</div></div>
+              <div class="panel-body"><div id="compareGrid" class="compare-grid"></div></div>
+            </div>
+
+            <div class="panel layout-span-6 layout-order-17" data-view-group="all compare">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="git-compare-arrows"></i>모델 비교 상세</div></div>
+              <div class="panel-body"><div id="compareDetail"></div></div>
+            </div>
+
+            <div class="panel layout-span-12 layout-order-18" data-view-group="all diagnostic">
+              <div class="panel-head"><div class="panel-title"><i data-lucide="sigma"></i>변수별 기본 분석</div></div>
+              <div class="panel-body"><div id="statsTable"></div></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const COLORS = {
+      blue: "#246bfe",
+      teal: "#0e9384",
+      coral: "#e5484d",
+      amber: "#d9822b",
+      violet: "#6e56cf",
+      green: "#16a34a",
+      slate: "#475467",
+      gray: "#98a2b3"
+    };
+
+    const state = {
+      fileName: "",
+      rawRows: [],
+      model: null,
+      selectedVars: [],
+      focusVar: "",
+      algorithm: "auto",
+      threshold: 97.5,
+      window: 24,
+      seasonPeriod: 0,
+      aggregate: "max",
+      currentTab: "series",
+      activeDashboardView: "all",
+      result: null
+    };
+
+    const els = {};
+    const plotConfig = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] };
+    const compactPlotConfig = { ...plotConfig, displayModeBar: false };
+
+    document.addEventListener("DOMContentLoaded", () => {
+      cacheEls();
+      wireEvents();
+      refreshControls();
+      setStatus("대기 중", "circle-dot");
+      if (window.lucide) lucide.createIcons();
+      const params = new URLSearchParams(window.location.search);
+      const urlView = params.get("view");
+      if (["all", "overview", "detect", "diagnostic", "compare", "anomalies"].includes(urlView)) {
+        state.activeDashboardView = urlView;
+      }
+      if (params.get("demo") === "1") {
+        setTimeout(loadDemoData, 250);
+      }
+    });
+
+    function cacheEls() {
+      [
+        "fileInput", "uploadBtn", "demoBtn", "dropZone", "fileName", "algorithmSelect",
+        "thresholdRange", "thresholdLabel", "windowInput", "seasonInput", "aggregateSelect",
+        "focusSelect", "varList", "selectAllBtn", "clearVarsBtn", "emptyState", "dashboard",
+        "summaryGrid", "dataInfo", "interpretation", "modelGuide", "dataQuality", "qualityGrid", "statsTable", "anomalyTable", "segmentTable", "causeTable", "compareGrid", "compareDetail",
+        "statusChip", "methodHint", "chartMini", "seriesChart", "scoreChart", "countChart",
+        "thresholdChart", "rollingChart", "decompChart", "histChart", "corrChart", "missingChart",
+        "exportBtn", "reportBtn", "viewTabs", "toast"
+      ].forEach(id => els[id] = document.getElementById(id));
+    }
+
+    function wireEvents() {
+      els.uploadBtn.addEventListener("click", () => els.fileInput.click());
+      els.fileInput.addEventListener("change", e => {
+        const file = e.target.files[0];
+        if (file) loadCsvFile(file);
+      });
+      els.demoBtn.addEventListener("click", loadDemoData);
+      els.exportBtn.addEventListener("click", exportAnomalyCsv);
+      els.reportBtn.addEventListener("click", exportAnalysisReport);
+      els.dropZone.addEventListener("dragover", e => {
+        e.preventDefault();
+        els.dropZone.classList.add("dragover");
+      });
+      els.dropZone.addEventListener("dragleave", () => els.dropZone.classList.remove("dragover"));
+      els.dropZone.addEventListener("drop", e => {
+        e.preventDefault();
+        els.dropZone.classList.remove("dragover");
+        const file = e.dataTransfer.files[0];
+        if (file) loadCsvFile(file);
+      });
+
+      els.algorithmSelect.addEventListener("change", e => { state.algorithm = e.target.value; recompute(); });
+      els.thresholdRange.addEventListener("input", e => {
+        state.threshold = Number(e.target.value);
+        els.thresholdLabel.textContent = `${state.threshold.toFixed(1)}%`;
+        refreshThresholdPresets();
+        recompute();
+      });
+      document.querySelectorAll("[data-threshold]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.threshold = Number(btn.dataset.threshold);
+          els.thresholdRange.value = state.threshold;
+          els.thresholdLabel.textContent = `${state.threshold.toFixed(1)}%`;
+          refreshThresholdPresets();
+          recompute();
+        });
+      });
+      els.windowInput.addEventListener("change", e => {
+        state.window = clamp(Math.round(Number(e.target.value) || 24), 3, 500);
+        e.target.value = state.window;
+        recompute();
+      });
+      els.seasonInput.addEventListener("change", e => {
+        state.seasonPeriod = clamp(Math.round(Number(e.target.value) || 0), 0, 1000);
+        e.target.value = state.seasonPeriod;
+        recompute();
+      });
+      els.aggregateSelect.addEventListener("change", e => { state.aggregate = e.target.value; recompute(); });
+      els.focusSelect.addEventListener("change", e => { state.focusVar = e.target.value; recompute(); });
+      els.selectAllBtn.addEventListener("click", () => {
+        if (!state.model) return;
+        state.selectedVars = [...state.model.numericCols];
+        state.focusVar = state.selectedVars[0] || "";
+        refreshControls();
+        recompute();
+      });
+      els.clearVarsBtn.addEventListener("click", () => {
+        state.selectedVars = [];
+        refreshControls();
+        recompute();
+      });
+      document.querySelectorAll(".tab").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.currentTab = btn.dataset.view;
+          document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b === btn));
+          els.seriesChart.style.display = state.currentTab === "series" ? "" : "none";
+          els.scoreChart.style.display = state.currentTab === "scores" ? "" : "none";
+          if (state.result) {
+            setTimeout(() => {
+              [els.seriesChart, els.scoreChart].forEach(resizeVisiblePlot);
+            }, 30);
+          }
+        });
+      });
+      document.querySelectorAll(".view-tab").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.activeDashboardView = btn.dataset.dashboardView || "all";
+          applyDashboardView();
+        });
+      });
+    }
+
+    function loadCsvFile(file) {
+      setStatus("CSV 읽는 중", "loader");
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: false,
+        complete: results => {
+          if (results.errors && results.errors.length) {
+            showToast(`CSV 파싱 경고: ${results.errors[0].message}`);
+          }
+          initializeData(results.data, file.name);
+        },
+        error: err => showToast(`CSV를 읽지 못했습니다: ${err.message || err}`)
+      });
+    }
+
+    async function loadDemoData() {
+      setStatus("데모 데이터 읽는 중", "loader");
+      try {
+        const response = await fetch("air_quality_uci_multivariate.csv", { cache: "no-store" });
+        if (response.ok) {
+          const text = await response.text();
+          const parsed = Papa.parse(text, {
+            header: true,
+            skipEmptyLines: true,
+            dynamicTyping: false
+          });
+          if (parsed.data && parsed.data.length) {
+            initializeData(parsed.data, "air_quality_uci_multivariate.csv");
+            return;
+          }
+        }
+      } catch (err) {
+        // file://로 직접 실행하는 경우 fetch가 막힐 수 있어 내장 샘플로 이어갑니다.
+      }
+
+      const rows = [];
+      const start = new Date("2004-03-10T18:00:00");
+      const anomalies = new Set([41, 42, 95, 154, 155, 238, 286, 287]);
+      for (let i = 0; i < 360; i++) {
+        const date = new Date(start.getTime() + i * 3600 * 1000);
+        const hour = date.getHours();
+        const rush = Math.exp(-Math.pow(hour - 8, 2) / 9) + Math.exp(-Math.pow(hour - 19, 2) / 10);
+        const daily = Math.sin((2 * Math.PI * i) / 24);
+        const weekly = Math.sin((2 * Math.PI * i) / (24 * 7));
+        let co = 1.7 + 1.1 * rush + 0.25 * weekly + seededNoise(i, 0.14);
+        let benzene = 7.8 + 5.2 * rush + 1.1 * daily + seededNoise(i + 17, 0.52);
+        let nox = 105 + 92 * rush + 18 * weekly + seededNoise(i + 31, 8.6);
+        let no2 = 76 + 36 * rush + 8 * weekly + seededNoise(i + 43, 4.7);
+        let sensorCo = 1040 + 185 * rush + 42 * daily + seededNoise(i + 59, 18);
+        let temp = 13.5 + 4.8 * Math.sin((2 * Math.PI * (i - 54)) / (24 * 12)) + seededNoise(i + 71, 0.45);
+        let rh = 54 - 13 * Math.sin((2 * Math.PI * (i - 54)) / (24 * 12)) + seededNoise(i + 83, 1.9);
+        if (anomalies.has(i)) {
+          co += i % 2 ? 2.6 : -1.2;
+          benzene += i % 2 ? 10.5 : -4.2;
+          nox += i % 3 ? 180 : -65;
+          no2 += i % 3 ? 72 : -26;
+          sensorCo += i % 2 ? 390 : -180;
+        }
+        if (i === 212 || i === 213) {
+          temp += 10.5;
+          rh -= 22;
+        }
+        rows.push({
+          timestamp: formatDate(date),
+          "CO(GT)": round(Math.max(co, 0.1), 3),
+          "C6H6(GT)": round(Math.max(benzene, 0.1), 3),
+          "NOx(GT)": round(Math.max(nox, 1), 3),
+          "NO2(GT)": round(Math.max(no2, 1), 3),
+          "PT08.S1(CO)": round(Math.max(sensorCo, 1), 3),
+          T: round(temp, 3),
+          RH: round(Math.max(rh, 1), 3),
+          AH: round(Math.max((rh / 100) * Math.exp(17.27 * temp / (237.7 + temp)), 0.05), 4)
+        });
+      }
+      rows[67].RH = "";
+      rows[68].AH = "";
+      rows[180]["NOx(GT)"] = "";
+      rows.push({ ...rows[144] });
+      initializeData(rows, "air_quality_demo_sample.csv");
+    }
+
+    function initializeData(rows, fileName) {
+      const cleanRows = rows.filter(r => r && Object.values(r).some(v => String(v ?? "").trim() !== ""));
+      if (!cleanRows.length) {
+        showToast("분석할 행이 없습니다.");
+        return;
+      }
+      const model = buildDataModel(cleanRows);
+      if (!model.numericCols.length) {
+        showToast("숫자형 변수를 찾지 못했습니다. CSV에 수치 열이 필요합니다.");
+        return;
+      }
+      state.fileName = fileName;
+      state.rawRows = cleanRows;
+      state.model = model;
+      state.selectedVars = model.numericCols.slice(0, Math.min(6, model.numericCols.length));
+      state.focusVar = state.selectedVars[0] || model.numericCols[0];
+      state.threshold = 97.5;
+      state.window = suggestWindow(model);
+      state.seasonPeriod = 0;
+      state.algorithm = "auto";
+      state.aggregate = "max";
+      els.emptyState.style.display = "none";
+      els.dashboard.style.display = "";
+      refreshControls();
+      recompute();
+      setStatus("분석 완료", "check-circle-2");
+    }
+
+    function refreshControls() {
+      els.fileName.textContent = state.fileName || "날짜/시간 열과 숫자형 변수를 자동 인식합니다.";
+      els.algorithmSelect.value = state.algorithm;
+      els.thresholdRange.value = state.threshold;
+      els.thresholdLabel.textContent = `${state.threshold.toFixed(1)}%`;
+      refreshThresholdPresets();
+      els.windowInput.value = state.window;
+      els.seasonInput.value = state.seasonPeriod;
+      els.aggregateSelect.value = state.aggregate;
+
+      const numericCols = state.model?.numericCols || [];
+      els.focusSelect.innerHTML = numericCols.map(col => `<option value="${escapeAttr(col)}">${escapeHtml(col)}</option>`).join("");
+      els.focusSelect.value = state.focusVar || numericCols[0] || "";
+
+      els.varList.innerHTML = numericCols.map(col => {
+        const checked = state.selectedVars.includes(col) ? "checked" : "";
+        return `<label class="check-row"><input type="checkbox" value="${escapeAttr(col)}" ${checked} /> <span>${escapeHtml(col)}</span></label>`;
+      }).join("") || `<div class="check-row">숫자형 변수가 없습니다.</div>`;
+      els.varList.querySelectorAll("input[type='checkbox']").forEach(input => {
+        input.addEventListener("change", () => {
+          const col = input.value;
+          if (input.checked && !state.selectedVars.includes(col)) state.selectedVars.push(col);
+          if (!input.checked) state.selectedVars = state.selectedVars.filter(v => v !== col);
+          if (!state.selectedVars.includes(state.focusVar)) state.focusVar = state.selectedVars[0] || col;
+          refreshControls();
+          recompute();
+        });
+      });
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function recompute() {
+      if (!state.model) return;
+      const vars = state.selectedVars.filter(v => state.model.numericCols.includes(v));
+      if (!vars.length) {
+        showEmptyAnalysis();
+        return;
+      }
+      if (!vars.includes(state.focusVar)) state.focusVar = vars[0];
+      const period = resolveSeasonPeriod(state.model, state.focusVar, state.seasonPeriod);
+      const result = detectAnomalies(state.model, vars, {
+        algorithm: state.algorithm,
+        threshold: state.threshold,
+        window: state.window,
+        seasonPeriod: period,
+        aggregate: state.aggregate
+      });
+      state.result = result;
+      els.methodHint.textContent = methodLabel(result.method);
+      renderDashboard(result);
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function showEmptyAnalysis() {
+      els.summaryGrid.innerHTML = "";
+      els.interpretation.innerHTML = "분석 대상 변수를 하나 이상 선택하면 결과가 표시됩니다.";
+    }
+
+    function buildDataModel(rows) {
+      const columns = Object.keys(rows[0] || {});
+      const dateCol = detectDateColumn(rows, columns);
+      const numericCols = detectNumericColumns(rows, columns, dateCol);
+      const parsed = rows.map((row, originalIndex) => {
+        const date = dateCol ? parseDateValue(row[dateCol]) : null;
+        return { row, originalIndex, date };
+      });
+      if (dateCol) parsed.sort((a, b) => (a.date?.getTime() ?? 0) - (b.date?.getTime() ?? 0));
+
+      const x = parsed.map((p, idx) => p.date ? new Date(p.date) : idx);
+      const labels = parsed.map((p, idx) => p.date ? formatDate(p.date) : String(idx + 1));
+      const values = {};
+      const rawValues = {};
+      const missing = {};
+      numericCols.forEach(col => {
+        rawValues[col] = parsed.map(p => parseNumberish(p.row[col]));
+        missing[col] = rawValues[col].filter(v => !Number.isFinite(v)).length;
+        values[col] = imputeSeries(rawValues[col]);
+      });
+
+      const fullRowSeen = new Set();
+      let duplicateRows = 0;
+      parsed.forEach(p => {
+        const key = columns.map(c => String(p.row[c] ?? "")).join("\u0001");
+        if (fullRowSeen.has(key)) duplicateRows += 1;
+        fullRowSeen.add(key);
+      });
+
+      let duplicateTime = 0;
+      if (dateCol) {
+        const timeSeen = new Set();
+        parsed.forEach(p => {
+          const key = p.date ? p.date.getTime() : "";
+          if (timeSeen.has(key)) duplicateTime += 1;
+          timeSeen.add(key);
+        });
+      }
+
+      const freq = estimateFrequency(parsed.map(p => p.date).filter(Boolean));
+      const stats = numericCols.map(col => analyzeVariable(col, values[col], rawValues[col], missing[col], freq));
+      const corr = correlationMatrix(numericCols, values);
+      const profile = {
+        rowCount: parsed.length,
+        colCount: columns.length,
+        dateCol,
+        numericCols,
+        periodLabel: dateCol && parsed.length ? `${formatDate(parsed[0].date)} ~ ${formatDate(parsed[parsed.length - 1].date)}` : "행 번호 기준",
+        duplicateRows,
+        duplicateTime,
+        missingTotal: Object.values(missing).reduce((a, b) => a + b, 0),
+        missingRate: numericCols.length ? Object.values(missing).reduce((a, b) => a + b, 0) / (numericCols.length * parsed.length) : 0,
+        freq
+      };
+      return { rows: parsed, columns, dateCol, numericCols, x, labels, values, rawValues, missing, stats, corr, profile };
+    }
+
+    function detectDateColumn(rows, columns) {
+      const sample = rows.slice(0, Math.min(rows.length, 250));
+      let best = { col: null, score: 0 };
+      columns.forEach(col => {
+        let parseable = 0;
+        let nonEmpty = 0;
+        sample.forEach(row => {
+          const raw = row[col];
+          if (raw === null || raw === undefined || String(raw).trim() === "") return;
+          nonEmpty += 1;
+          if (parseDateValue(raw)) parseable += 1;
+        });
+        if (!nonEmpty) return;
+        const nameBonus = /(date|time|timestamp|datetime|일시|날짜|시간|dt)/i.test(col) ? 0.18 : 0;
+        const score = parseable / nonEmpty + nameBonus;
+        if (score > best.score) best = { col, score };
+      });
+      return best.score >= 0.72 ? best.col : null;
+    }
+
+    function detectNumericColumns(rows, columns, dateCol) {
+      const sample = rows.slice(0, Math.min(rows.length, 300));
+      return columns.filter(col => {
+        if (col === dateCol) return false;
+        let numeric = 0;
+        let nonEmpty = 0;
+        sample.forEach(row => {
+          const raw = row[col];
+          if (raw === null || raw === undefined || String(raw).trim() === "") return;
+          nonEmpty += 1;
+          if (Number.isFinite(parseNumberish(raw))) numeric += 1;
+        });
+        return nonEmpty > 0 && numeric / nonEmpty >= 0.75;
+      });
+    }
+
+    function refreshThresholdPresets() {
+      document.querySelectorAll("[data-threshold]").forEach(btn => {
+        btn.classList.toggle("active", Math.abs(Number(btn.dataset.threshold) - state.threshold) < 0.001);
+      });
+    }
+
+    function parseDateValue(value) {
+      if (value instanceof Date && Number.isFinite(value.getTime())) return value;
+      const s = String(value ?? "").trim();
+      if (!s) return null;
+      if (/^\d{8}$/.test(s)) {
+        const y = Number(s.slice(0, 4));
+        const m = Number(s.slice(4, 6));
+        const d = Number(s.slice(6, 8));
+        const dt = new Date(y, m - 1, d);
+        return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d ? dt : null;
+      }
+      const dateOnly = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/);
+      if (dateOnly) {
+        const y = Number(dateOnly[1]);
+        const m = Number(dateOnly[2]);
+        const d = Number(dateOnly[3]);
+        const dt = new Date(y, m - 1, d);
+        return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d ? dt : null;
+      }
+      if (/^\d{4,5}(\.\d+)?$/.test(s)) {
+        const serial = Number(s);
+        if (serial > 20000 && serial < 80000) {
+          const epoch = new Date(Date.UTC(1899, 11, 30));
+          return new Date(epoch.getTime() + serial * 86400000);
+        }
+      }
+      if (!/[T:\-\/년월일.]/.test(s)) return null;
+      const normalized = s
+        .replace(/[년.]/g, "-")
+        .replace(/월/g, "-")
+        .replace(/일/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const time = Date.parse(normalized);
+      if (!Number.isFinite(time)) return null;
+      const dt = new Date(time);
+      if (dt.getFullYear() < 1900 || dt.getFullYear() > 2200) return null;
+      return dt;
+    }
+
+    function parseNumberish(value) {
+      if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+      let s = String(value ?? "").trim();
+      if (!s || /^nan$/i.test(s) || /^null$/i.test(s) || /^na$/i.test(s)) return NaN;
+      let multiplier = 1;
+      if (s.endsWith("%")) {
+        multiplier = 0.01;
+        s = s.slice(0, -1);
+      }
+      s = s.replace(/,/g, "").replace(/\s/g, "");
+      const n = Number(s);
+      return Number.isFinite(n) ? n * multiplier : NaN;
+    }
+
+    function imputeSeries(arr) {
+      const out = arr.slice();
+      const finite = out.filter(Number.isFinite);
+      const fallback = finite.length ? median(finite) : 0;
+      let last = NaN;
+      for (let i = 0; i < out.length; i++) {
+        if (Number.isFinite(out[i])) last = out[i];
+        else if (Number.isFinite(last)) out[i] = last;
+      }
+      let next = NaN;
+      for (let i = out.length - 1; i >= 0; i--) {
+        if (Number.isFinite(out[i])) next = out[i];
+        else if (Number.isFinite(next)) out[i] = next;
+      }
+      for (let i = 0; i < out.length; i++) if (!Number.isFinite(out[i])) out[i] = fallback;
+      for (let i = 0; i < arr.length; i++) {
+        if (Number.isFinite(arr[i])) continue;
+        let left = i - 1;
+        let right = i + 1;
+        while (left >= 0 && !Number.isFinite(arr[left])) left--;
+        while (right < arr.length && !Number.isFinite(arr[right])) right++;
+        if (left >= 0 && right < arr.length && Number.isFinite(arr[left]) && Number.isFinite(arr[right])) {
+          const t = (i - left) / (right - left);
+          out[i] = arr[left] * (1 - t) + arr[right] * t;
+        }
+      }
+      return out;
+    }
+
+    function estimateFrequency(dates) {
+      if (dates.length < 3) return { label: "추정 불가", medianMs: 0, irregularity: 0, type: "unknown" };
+      const deltas = [];
+      for (let i = 1; i < dates.length; i++) {
+        const d = dates[i].getTime() - dates[i - 1].getTime();
+        if (d > 0) deltas.push(d);
+      }
+      if (!deltas.length) return { label: "추정 불가", medianMs: 0, irregularity: 0, type: "unknown" };
+      const med = median(deltas);
+      const irregularity = median(deltas.map(d => Math.abs(d - med))) / Math.max(med, 1);
+      const minute = 60000;
+      const hour = 60 * minute;
+      const day = 24 * hour;
+      let label = `${formatDuration(med)} 간격`;
+      let type = "custom";
+      if (Math.abs(med - minute) / minute < 0.1) { label = "1분"; type = "minute"; }
+      else if (Math.abs(med - 30 * minute) / (30 * minute) < 0.1) { label = "30분"; type = "half-hour"; }
+      else if (Math.abs(med - hour) / hour < 0.1) { label = "1시간"; type = "hour"; }
+      else if (Math.abs(med - day) / day < 0.1) { label = "1일"; type = "day"; }
+      else if (Math.abs(med - 7 * day) / (7 * day) < 0.1) { label = "1주"; type = "week"; }
+      else if (med > 26 * day && med < 32 * day) { label = "1개월"; type = "month"; }
+      if (irregularity > 0.25) label += " (불규칙)";
+      return { label, medianMs: med, irregularity, type };
+    }
+
+    function suggestWindow(model) {
+      const t = model.profile.freq.type;
+      if (t === "hour") return 24;
+      if (t === "half-hour") return 48;
+      if (t === "minute") return 60;
+      if (t === "day") return 7;
+      if (t === "week") return 8;
+      if (t === "month") return 12;
+      return Math.min(24, Math.max(5, Math.round(model.profile.rowCount / 20)));
+    }
+
+    function resolveSeasonPeriod(model, focusVar, manual) {
+      if (manual > 1) return manual;
+      const stat = model.stats.find(s => s.name === focusVar);
+      if (stat?.seasonalPeriod > 1) return stat.seasonalPeriod;
+      const t = model.profile.freq.type;
+      if (t === "hour") return 24;
+      if (t === "half-hour") return 48;
+      if (t === "day") return 7;
+      if (t === "month") return 12;
+      return Math.max(2, Math.min(24, suggestWindow(model)));
+    }
+
+    function analyzeVariable(name, values, rawValues, missingCount, freq) {
+      const finite = rawValues.filter(Number.isFinite);
+      const n = values.length;
+      const m = mean(values);
+      const sd = std(values);
+      const q1 = quantile(values, 0.25);
+      const q3 = quantile(values, 0.75);
+      const minV = Math.min(...values);
+      const maxV = Math.max(...values);
+      const slopeInfo = linearRegression(values.map((_, i) => i), values);
+      const normalizedSlope = Math.abs(slopeInfo.slope) * Math.max(n - 1, 1) / Math.max(sd, 1e-9);
+      const trend = normalizedSlope > 0.8 ? (slopeInfo.slope > 0 ? "증가 추세" : "감소 추세") : normalizedSlope > 0.35 ? "약한 추세" : "뚜렷하지 않음";
+      const season = detectSeasonality(values, freq);
+      const half = Math.floor(n / 2);
+      const first = values.slice(0, half);
+      const second = values.slice(half);
+      const meanShift = Math.abs(mean(first) - mean(second)) / Math.max(sd, 1e-9);
+      const varShift = Math.abs(std(first) - std(second)) / Math.max(sd, 1e-9);
+      const acf1 = Math.abs(autocorr(values, 1));
+      const stationary = meanShift < 0.45 && varShift < 0.6 && normalizedSlope < 0.6 ? "정상성 가능" : "비정상성 가능";
+      return {
+        name,
+        count: finite.length,
+        missingCount,
+        missingRate: missingCount / Math.max(n, 1),
+        mean: m,
+        median: median(values),
+        std: sd,
+        min: minV,
+        q1,
+        q3,
+        max: maxV,
+        trend,
+        trendStrength: normalizedSlope,
+        seasonality: season.score > 0.35 ? "계절성 가능" : "약함",
+        seasonScore: season.score,
+        seasonalPeriod: season.period,
+        stationarity: stationary,
+        acf1
+      };
+    }
+
+    function detectSeasonality(values, freq) {
+      const n = values.length;
+      const candidates = new Set();
+      const add = p => { if (p > 1 && p < n / 2) candidates.add(p); };
+      if (freq.type === "hour") [24, 24 * 7].forEach(add);
+      if (freq.type === "half-hour") [48, 48 * 7].forEach(add);
+      if (freq.type === "day") [7, 14, 30, 365].forEach(add);
+      if (freq.type === "week") [4, 13, 52].forEach(add);
+      if (freq.type === "month") [12].forEach(add);
+      for (let p = 2; p <= Math.min(60, Math.floor(n / 2)); p++) add(p);
+      let best = { period: 0, score: 0 };
+      candidates.forEach(p => {
+        const score = Math.abs(autocorr(values, p));
+        if (score > best.score) best = { period: p, score };
+      });
+      return best;
+    }
+
+    function correlationMatrix(cols, values) {
+      return cols.map(a => cols.map(b => pearson(values[a], values[b])));
+    }
+
+    function maxAbsOffDiagonal(corr) {
+      let max = 0;
+      for (let i = 0; i < corr.length; i++) {
+        for (let j = 0; j < corr[i].length; j++) {
+          if (i !== j && Number.isFinite(corr[i][j])) max = Math.max(max, Math.abs(corr[i][j]));
+        }
+      }
+      return max;
+    }
+
+    function detectAnomalies(model, vars, options) {
+      const method = options.algorithm === "auto" ? recommendMethod(model, vars) : options.algorithm;
+      const base = computeScores(model, vars, { ...options, algorithm: method });
+      const scores = base.overallScores;
+      const maxScore = Math.max(...scores);
+      const cutoff = maxScore <= 0 ? Infinity : quantile(scores, options.threshold / 100);
+      const anomalies = scores.map(s => Number.isFinite(s) && s >= cutoff && maxScore > 0);
+      const variableCounts = Object.fromEntries(vars.map(v => [v, 0]));
+      const anomalyRows = [];
+      anomalies.forEach((isAnom, i) => {
+        if (!isAnom) return;
+        const contributions = vars.map(v => ({ varName: v, score: base.perVarScores[v]?.[i] ?? 0 }));
+        contributions.sort((a, b) => b.score - a.score);
+        const top = contributions[0]?.score ?? 0;
+        const active = contributions.filter(c => c.score >= top * 0.72 && c.score > 0).slice(0, 3);
+        const chosen = active.length ? active : contributions.slice(0, 1);
+        chosen.forEach(c => variableCounts[c.varName] += 1);
+        anomalyRows.push({
+          index: i,
+          time: model.labels[i],
+          score: scores[i],
+          variables: chosen.map(c => c.varName),
+          values: Object.fromEntries(vars.map(v => [v, model.rawValues[v][i]]))
+        });
+      });
+      const compare = compareMethods(model, vars, options);
+      return {
+        method,
+        methodRequested: options.algorithm,
+        vars,
+        focusVar: state.focusVar,
+        cutoff,
+        scores,
+        perVarScores: base.perVarScores,
+        anomalies,
+        anomalyRows,
+        variableCounts,
+        components: base.components,
+        options,
+        compare,
+        sensitivity: buildSensitivity(scores),
+        methodNote: base.note
+      };
+    }
+
+    function recommendMethod(model, vars) {
+      const focusStat = model.stats.find(s => s.name === (state.focusVar || vars[0]));
+      const corrStrong = maxAbsOffDiagonal(model.corr) > 0.72;
+      if (vars.length > 2 && corrStrong) return "pca";
+      if (vars.length > 1 && model.profile.rowCount <= 5000) return "ensemble";
+      if (focusStat && (focusStat.trendStrength > 0.6 || focusStat.seasonScore > 0.35)) return "stl";
+      return "rolling";
+    }
+
+    function computeScores(model, vars, options) {
+      const alg = options.algorithm;
+      if (alg === "zscore") return scoreZ(model, vars, options);
+      if (alg === "iqr") return scoreIqr(model, vars, options);
+      if (alg === "rolling") return scoreRolling(model, vars, options);
+      if (alg === "hampel") return scoreHampel(model, vars, options);
+      if (alg === "stl") return scoreStl(model, vars, options);
+      if (alg === "ewma") return scoreEwma(model, vars, options);
+      if (alg === "cusum") return scoreCusum(model, vars, options);
+      if (alg === "changepoint") return scoreChangePoint(model, vars, options);
+      if (alg === "pca") return scorePca(model, vars, options);
+      if (alg === "knn") return scoreKnn(model, vars, options);
+      if (alg === "isolation") return scoreIsolation(model, vars, options);
+      if (alg === "lof") return scoreLof(model, vars, options);
+      return scoreEnsemble(model, vars, options);
+    }
+
+    function scoreZ(model, vars, options) {
+      const per = {};
+      vars.forEach(v => {
+        const arr = model.values[v];
+        const m = mean(arr);
+        const sd = std(arr) || 1e-9;
+        per[v] = arr.map(x => Math.abs((x - m) / sd));
+      });
+      return { overallScores: aggregateScores(per, vars, options.aggregate), perVarScores: per, components: {}, note: "평균과 표준편차 기준" };
+    }
+
+    function scoreIqr(model, vars, options) {
+      const per = {};
+      vars.forEach(v => {
+        const arr = model.values[v];
+        const q1 = quantile(arr, 0.25);
+        const q3 = quantile(arr, 0.75);
+        const iqr = Math.max(q3 - q1, 1e-9);
+        const low = q1 - 1.5 * iqr;
+        const high = q3 + 1.5 * iqr;
+        per[v] = arr.map(x => x < low ? (low - x) / iqr + 1.5 : x > high ? (x - high) / iqr + 1.5 : Math.abs(x - median(arr)) / iqr);
+      });
+      return { overallScores: aggregateScores(per, vars, options.aggregate), perVarScores: per, components: {}, note: "사분위 범위 기준" };
+    }
+
+    function scoreRolling(model, vars, options) {
+      const per = {};
+      const comps = {};
+      vars.forEach(v => {
+        const arr = model.values[v];
+        const roll = rollingMeanStd(arr, options.window);
+        per[v] = arr.map((x, i) => Math.abs((x - roll.mean[i]) / Math.max(roll.std[i], 1e-9)));
+        if (v === state.focusVar) comps.rolling = roll;
+      });
+      return { overallScores: aggregateScores(per, vars, options.aggregate), perVarScores: per, components: comps, note: "이동평균과 이동표준편차 기준" };
+    }
+
+    function scoreHampel(model, vars, options) {
+      const per = {};
+      vars.forEach(v => {
+        const arr = model.values[v];
+        per[v] = rollingMedianMadScore(arr, options.window);
+      });
+      return { overallScores: aggregateScores(per, vars, options.aggregate), perVarScores: per, components: {}, note: "주변 구간의 중앙값과 MAD 기준" };
+    }
+
+    function scoreStl(model, vars, options) {
+      const per = {};
+      const comps = {};
+      vars.forEach(v => {
+        const arr = model.values[v];
+        const period = resolveSeasonPeriod(model, v, options.seasonPeriod);
+        const d = decomposeSeries(arr, period, Math.max(options.window, period * 2 + 1));
+        const scale = mad(d.residual) * 1.4826 || std(d.residual) || 1e-9;
+        per[v] = d.residual.map(r => Math.abs(r / scale));
+        if (v === state.focusVar) comps.decomposition = d;
+      });
+      return { overallScores: aggregateScores(per, vars, options.aggregate), perVarScores: per, components: comps, note: "추세와 계절성을 제거한 잔차 기준" };
+    }
+
+    function scoreEwma(model, vars, options) {
+      const per = {};
+      const alpha = 2 / (Math.max(options.window, 3) + 1);
+      vars.forEach(v => {
+        const arr = model.values[v];
+        let level = arr[0] ?? 0;
+        const residuals = [];
+        per[v] = arr.map((x, i) => {
+          const pred = i === 0 ? x : level;
+          const r = x - pred;
+          residuals.push(r);
+          level = alpha * x + (1 - alpha) * level;
+          const recent = residuals.slice(Math.max(0, residuals.length - options.window));
+          const scale = mad(recent) * 1.4826 || std(recent) || std(residuals) || 1e-9;
+          return Math.abs(r / scale);
+        });
+      });
+      return { overallScores: aggregateScores(per, vars, options.aggregate), perVarScores: per, components: {}, note: "EWMA 예측값에서 벗어난 잔차 기준" };
+    }
+
+    function scoreCusum(model, vars, options) {
+      const per = {};
+      vars.forEach(v => {
+        const arr = model.values[v];
+        const med = median(arr);
+        const scale = mad(arr) * 1.4826 || std(arr) || 1e-9;
+        const k = 0.35 * scale;
+        let pos = 0;
+        let neg = 0;
+        per[v] = arr.map(x => {
+          pos = Math.max(0, pos + (x - med - k));
+          neg = Math.min(0, neg + (x - med + k));
+          return Math.max(pos, Math.abs(neg)) / scale;
+        });
+      });
+      return { overallScores: aggregateScores(per, vars, options.aggregate), perVarScores: per, components: {}, note: "평균 수준에서 지속적으로 이탈하는 누적 변화 기준" };
+    }
+
+    function scoreChangePoint(model, vars, options) {
+      const per = {};
+      const w = Math.max(3, Math.round(options.window));
+      vars.forEach(v => {
+        const arr = model.values[v];
+        const scale = mad(arr) * 1.4826 || std(arr) || 1e-9;
+        per[v] = arr.map((_, i) => {
+          const left = arr.slice(Math.max(0, i - w), i);
+          const right = arr.slice(i, Math.min(arr.length, i + w));
+          if (left.length < 2 || right.length < 2) return 0;
+          const meanJump = Math.abs(mean(right) - mean(left)) / scale;
+          const varJump = Math.abs(std(right) - std(left)) / scale;
+          return meanJump + 0.45 * varJump;
+        });
+      });
+      return { overallScores: aggregateScores(per, vars, options.aggregate), perVarScores: per, components: {}, note: "앞뒤 rolling 구간의 평균/분산 변화 기준" };
+    }
+
+    function scorePca(model, vars, options) {
+      const matrix = buildScaledMatrix(model, vars);
+      const pca = pcaReconstructionScores(matrix);
+      const per = {};
+      vars.forEach((v, j) => {
+        per[v] = pca.residualMatrix.map(row => Math.abs(row[j] || 0));
+      });
+      return { overallScores: pca.scores, perVarScores: per, components: { pca }, note: "주요 공통 패턴으로 복원되지 않는 다변량 잔차 기준" };
+    }
+
+    function scoreKnn(model, vars, options) {
+      const matrix = buildScaledMatrix(model, vars);
+      const scores = knnDistanceScores(matrix, Math.min(10, Math.max(3, Math.round(Math.sqrt(matrix.length)))));
+      const per = contributionScores(model, vars);
+      return { overallScores: scores, perVarScores: per, components: {}, note: "가까운 이웃들과의 거리 기준" };
+    }
+
+    function scoreIsolation(model, vars, options) {
+      const matrix = buildScaledMatrix(model, vars);
+      const scores = isolationForestScores(matrix, 70, Math.min(128, matrix.length));
+      const per = contributionScores(model, vars);
+      return { overallScores: scores, perVarScores: per, components: {}, note: "무작위 분할에서 고립되는 정도 기준" };
+    }
+
+    function scoreLof(model, vars, options) {
+      const matrix = buildScaledMatrix(model, vars);
+      const scores = lofScores(matrix, 12);
+      const per = contributionScores(model, vars);
+      return { overallScores: scores, perVarScores: per, components: {}, note: "주변 밀도 대비 낮은 밀도 기준" };
+    }
+
+    function scoreEnsemble(model, vars, options) {
+      const methods = ["zscore", "iqr", "rolling", "hampel", "stl", "ewma", "cusum", "changepoint", "pca"];
+      if (model.profile.rowCount <= 4000) methods.push("isolation");
+      const packs = methods.map(m => computeScores(model, vars, { ...options, algorithm: m }));
+      const scoresByMethod = packs.map(p => normalizeScore(p.overallScores));
+      const overall = model.x.map((_, i) => mean(scoresByMethod.map(s => s[i])));
+      const per = {};
+      vars.forEach(v => {
+        const arrs = packs.map(p => normalizeScore(p.perVarScores[v] || model.values[v].map(() => 0)));
+        per[v] = model.x.map((_, i) => mean(arrs.map(a => a[i])));
+      });
+      const stlPack = packs.find((_, i) => methods[i] === "stl");
+      return { overallScores: overall, perVarScores: per, components: stlPack?.components || {}, note: "통계, rolling, 분해, 변화점, 다변량 점수 평균" };
+    }
+
+    function aggregateScores(per, vars, aggregate) {
+      const n = per[vars[0]]?.length || 0;
+      const normalized = Object.fromEntries(vars.map(v => [v, normalizeScore(per[v])]));
+      return Array.from({ length: n }, (_, i) => {
+        const vals = vars.map(v => normalized[v][i]);
+        return aggregate === "mean" ? mean(vals) : Math.max(...vals);
+      });
+    }
+
+    function contributionScores(model, vars) {
+      const per = {};
+      vars.forEach(v => {
+        const arr = model.values[v];
+        const med = median(arr);
+        const scale = mad(arr) * 1.4826 || std(arr) || 1e-9;
+        per[v] = arr.map(x => Math.abs((x - med) / scale));
+      });
+      return per;
+    }
+
+    function buildScaledMatrix(model, vars) {
+      const stats = vars.map(v => {
+        const arr = model.values[v];
+        return { med: median(arr), scale: mad(arr) * 1.4826 || std(arr) || 1e-9 };
+      });
+      return model.x.map((_, i) => vars.map((v, j) => (model.values[v][i] - stats[j].med) / stats[j].scale));
+    }
+
+    function isolationForestScores(matrix, trees = 60, sampleSize = 128) {
+      const n = matrix.length;
+      if (!n) return [];
+      const psi = Math.max(2, Math.min(sampleSize, n));
+      const cPsi = avgPathLength(psi);
+      const pathSum = Array(n).fill(0);
+      for (let t = 0; t < trees; t++) {
+        const sampleIdx = sampleIndices(n, psi, t + 17);
+        const tree = buildIsolationTree(matrix, sampleIdx, 0, Math.ceil(Math.log2(psi)) + 4, t);
+        for (let i = 0; i < n; i++) pathSum[i] += pathLength(matrix[i], tree, 0);
+      }
+      return pathSum.map(h => Math.pow(2, -(h / trees) / Math.max(cPsi, 1e-9)));
+    }
+
+    function buildIsolationTree(matrix, indices, depth, maxDepth, seed) {
+      if (depth >= maxDepth || indices.length <= 1) return { size: indices.length };
+      const dims = matrix[0].length;
+      const feature = Math.floor(rand(seed + depth * 101 + indices.length) * dims);
+      const vals = indices.map(i => matrix[i][feature]);
+      const minV = Math.min(...vals);
+      const maxV = Math.max(...vals);
+      if (minV === maxV) return { size: indices.length };
+      const split = minV + rand(seed + depth * 59 + feature * 19) * (maxV - minV);
+      const left = indices.filter(i => matrix[i][feature] < split);
+      const right = indices.filter(i => matrix[i][feature] >= split);
+      if (!left.length || !right.length) return { size: indices.length };
+      return {
+        feature,
+        split,
+        left: buildIsolationTree(matrix, left, depth + 1, maxDepth, seed + 3),
+        right: buildIsolationTree(matrix, right, depth + 1, maxDepth, seed + 7)
+      };
+    }
+
+    function pathLength(point, node, depth) {
+      if (node.size !== undefined) return depth + avgPathLength(node.size);
+      return point[node.feature] < node.split ? pathLength(point, node.left, depth + 1) : pathLength(point, node.right, depth + 1);
+    }
+
+    function avgPathLength(n) {
+      if (n <= 1) return 0;
+      if (n === 2) return 1;
+      return 2 * (Math.log(n - 1) + 0.5772156649) - (2 * (n - 1)) / n;
+    }
+
+    function lofScores(matrix, k = 12) {
+      const n = matrix.length;
+      if (n > 1600) {
+        return matrix.map(row => Math.sqrt(row.reduce((s, v) => s + v * v, 0)));
+      }
+      const dist = Array.from({ length: n }, () => []);
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const d = euclidean(matrix[i], matrix[j]);
+          dist[i][j] = d;
+          dist[j][i] = d;
+        }
+      }
+      const neighbors = [];
+      const kdist = [];
+      for (let i = 0; i < n; i++) {
+        const sorted = Array.from({ length: n }, (_, j) => ({ j, d: i === j ? Infinity : dist[i][j] })).sort((a, b) => a.d - b.d);
+        neighbors[i] = sorted.slice(0, Math.min(k, n - 1));
+        kdist[i] = neighbors[i][neighbors[i].length - 1]?.d || 0;
+      }
+      const lrd = Array(n).fill(0);
+      for (let i = 0; i < n; i++) {
+        const reach = neighbors[i].map(o => Math.max(kdist[o.j], o.d));
+        lrd[i] = 1 / Math.max(mean(reach), 1e-9);
+      }
+      return Array.from({ length: n }, (_, i) => mean(neighbors[i].map(o => lrd[o.j])) / Math.max(lrd[i], 1e-9));
+    }
+
+    function knnDistanceScores(matrix, k = 8) {
+      const n = matrix.length;
+      if (!n) return [];
+      const refIdx = n > 2200 ? sampleIndices(n, Math.min(650, n), 91) : Array.from({ length: n }, (_, i) => i);
+      return matrix.map((row, i) => {
+        const ds = [];
+        refIdx.forEach(j => {
+          if (j !== i) ds.push(euclidean(row, matrix[j]));
+        });
+        ds.sort((a, b) => a - b);
+        return mean(ds.slice(0, Math.min(k, ds.length))) || 0;
+      });
+    }
+
+    function pcaReconstructionScores(matrix) {
+      const n = matrix.length;
+      const d = matrix[0]?.length || 0;
+      if (!n || !d) return { scores: [], residualMatrix: [] };
+      const colMean = Array.from({ length: d }, (_, j) => mean(matrix.map(row => row[j])));
+      const centered = matrix.map(row => row.map((x, j) => x - colMean[j]));
+      if (d === 1) {
+        return { scores: centered.map(row => Math.abs(row[0])), residualMatrix: centered };
+      }
+      const cov = Array.from({ length: d }, () => Array(d).fill(0));
+      centered.forEach(row => {
+        for (let a = 0; a < d; a++) {
+          for (let b = 0; b < d; b++) cov[a][b] += row[a] * row[b];
+        }
+      });
+      for (let a = 0; a < d; a++) for (let b = 0; b < d; b++) cov[a][b] /= Math.max(n - 1, 1);
+      let pc = Array.from({ length: d }, (_, j) => 1 / Math.sqrt(d) + j * 0.001);
+      for (let iter = 0; iter < 42; iter++) {
+        const next = cov.map(row => row.reduce((s, v, j) => s + v * pc[j], 0));
+        const norm = Math.sqrt(next.reduce((s, v) => s + v * v, 0)) || 1;
+        pc = next.map(v => v / norm);
+      }
+      const residualMatrix = centered.map(row => {
+        const score = row.reduce((s, v, j) => s + v * pc[j], 0);
+        return row.map((v, j) => v - score * pc[j]);
+      });
+      const scores = residualMatrix.map(row => Math.sqrt(row.reduce((s, v) => s + v * v, 0)));
+      const variance = cov.reduce((s, row, i) => s + row[i], 0) || 1;
+      const pcVariance = pc.reduce((s, v, i) => s + v * cov[i].reduce((t, c, j) => t + c * pc[j], 0), 0);
+      return { scores, residualMatrix, explained: pcVariance / variance };
+    }
+
+    function compareMethods(model, vars, options) {
+      const names = ["zscore", "iqr", "rolling", "hampel", "stl", "ewma", "cusum", "changepoint", "pca"];
+      if (model.profile.rowCount <= 2600) names.push("knn", "isolation", "lof");
+      return names.map(name => {
+        const pack = computeScores(model, vars, { ...options, algorithm: name });
+        const cutoff = quantile(pack.overallScores, options.threshold / 100);
+        const maxScore = Math.max(...pack.overallScores);
+        const flags = pack.overallScores.map(s => s >= cutoff && maxScore > 0);
+        const count = flags.filter(Boolean).length;
+        return { name, count, ratio: count / Math.max(model.profile.rowCount, 1), label: methodLabel(name), cutoff, flags };
+      });
+    }
+
+    function buildSensitivity(scores) {
+      return [80, 85, 90, 92, 95, 97, 97.5, 98, 99, 99.5].map(p => {
+        const cutoff = quantile(scores, p / 100);
+        const count = Math.max(...scores) <= 0 ? 0 : scores.filter(s => s >= cutoff).length;
+        return { p, count, ratio: count / Math.max(scores.length, 1), cutoff };
+      });
+    }
+
+    function renderDashboard(result) {
+      renderSummary(result);
+      renderInfo(result);
+      renderInterpretation(result);
+      renderModelGuide(result);
+      renderDataQuality(result);
+      renderQuality(result);
+      renderSeriesChart(result);
+      renderScoreChart(result);
+      renderCountChart(result);
+      renderThresholdChart(result);
+      renderRollingChart(result);
+      renderDecompChart(result);
+      renderHistogram(result);
+      renderCorrelation(result);
+      renderMissing(result);
+      renderStatsTable(result);
+      renderAnomalyTable(result);
+      renderSegmentTable(result);
+      renderCauseTable(result);
+      renderCompare(result);
+      renderCompareDetail(result);
+      els.chartMini.textContent = `${methodLabel(result.method)} / cutoff ${fmt(result.cutoff, 3)}`;
+      applyDashboardView();
+    }
+
+    function applyDashboardView() {
+      const view = state.activeDashboardView || "all";
+      els.dashboard.dataset.activeView = view;
+      document.querySelectorAll(".view-tab").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.dashboardView === view);
+      });
+      document.querySelectorAll("[data-view-group]").forEach(el => {
+        const groups = (el.dataset.viewGroup || "all").split(/\s+/);
+        el.classList.toggle("is-hidden", !groups.includes(view));
+      });
+      if (state.result) {
+        setTimeout(() => {
+          document.querySelectorAll(".js-plotly-plot").forEach(resizeVisiblePlot);
+        }, 40);
+      }
+    }
+
+    function resizeVisiblePlot(plot) {
+      if (!plot || !plot.isConnected) return;
+      const rect = plot.getBoundingClientRect();
+      if (rect.width < 10 || rect.height < 10) return;
+      const resize = Plotly.Plots.resize(plot);
+      if (resize && typeof resize.catch === "function") resize.catch(() => {});
+    }
+
+    function renderSummary(result) {
+      const p = state.model.profile;
+      const anomalyCount = result.anomalyRows.length;
+      const topVar = Object.entries(result.variableCounts).sort((a, b) => b[1] - a[1])[0];
+      const cards = [
+        { icon: "rows-3", label: "데이터 길이", value: p.rowCount.toLocaleString(), sub: `${p.numericCols.length}개 숫자형 변수` },
+        { icon: "clock-3", label: "샘플링 주기", value: p.freq.label, sub: p.dateCol ? `시간 컬럼: ${p.dateCol}` : "시간 컬럼 없음" },
+        { icon: "badge-alert", label: "탐지된 이상", value: anomalyCount.toLocaleString(), sub: `${pct(anomalyCount / p.rowCount)} of rows` },
+        { icon: "target", label: "최다 이상 변수", value: topVar ? topVar[0] : "-", sub: topVar ? `${topVar[1].toLocaleString()}회 기여` : "선택 변수 없음" },
+        { icon: "calendar-days", label: "전체 기간", value: p.dateCol ? formatShortRange(p.periodLabel) : "행 번호", sub: p.periodLabel },
+        { icon: "circle-off", label: "결측률", value: pct(p.missingRate), sub: `${p.missingTotal.toLocaleString()}개 결측` },
+        { icon: "copy-check", label: "중복", value: (p.duplicateRows + p.duplicateTime).toLocaleString(), sub: `행 ${p.duplicateRows}, 시간 ${p.duplicateTime}` },
+        { icon: "activity", label: "탐지 기준", value: methodLabel(result.method), sub: result.methodNote }
+      ];
+      els.summaryGrid.innerHTML = cards.map(c => `
+        <div class="metric-card">
+          <div class="label"><i data-lucide="${c.icon}"></i>${escapeHtml(c.label)}</div>
+          <div>
+            <div class="value">${escapeHtml(String(c.value))}</div>
+            <div class="sub">${escapeHtml(String(c.sub))}</div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function renderInfo(result) {
+      const p = state.model.profile;
+      const info = [
+        ["파일명", state.fileName || "데모 데이터"],
+        ["날짜/시간 컬럼", p.dateCol || "자동 생성 인덱스"],
+        ["행/열 수", `${p.rowCount.toLocaleString()}행 / ${p.colCount.toLocaleString()}열`],
+        ["숫자형 변수", p.numericCols.join(", ")],
+        ["분석 변수", result.vars.join(", ")],
+        ["샘플링 주기", p.freq.label],
+        ["결측치", `${p.missingTotal.toLocaleString()}개 (${pct(p.missingRate)})`],
+        ["중복", `행 ${p.duplicateRows.toLocaleString()}개, 시간 ${p.duplicateTime.toLocaleString()}개`]
+      ];
+      els.dataInfo.innerHTML = info.map(([k, v]) => `
+        <div class="info-item">
+          <div class="k">${escapeHtml(k)}</div>
+          <div class="v">${escapeHtml(v)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderInterpretation(result) {
+      const total = state.model.profile.rowCount;
+      const count = result.anomalyRows.length;
+      const ratio = count / Math.max(total, 1);
+      const segments = anomalySegments(result.anomalies);
+      const segmentLengths = segments.map(s => s.end - s.start + 1);
+      const longestSegment = segments.slice().sort((a, b) => (b.end - b.start) - (a.end - a.start))[0];
+      const avgSegment = segmentLengths.length ? mean(segmentLengths) : 0;
+      const topVars = Object.entries(result.variableCounts).sort((a, b) => b[1] - a[1]).filter(([, c]) => c > 0).slice(0, 3);
+      let strictness = "현재 threshold는 비교적 균형적인 편입니다.";
+      if (ratio < 0.01) strictness = "이상 비율이 1% 미만이므로 현재 threshold는 엄격한 편입니다.";
+      if (ratio > 0.08) strictness = "이상 비율이 8%를 넘으므로 현재 threshold는 느슨하거나 데이터 변동성이 큰 편입니다.";
+      const topText = topVars.length ? topVars.map(([v, c]) => `${v} ${c}회`).join(", ") : "특정 변수 집중 없음";
+      const worst = result.anomalyRows.slice().sort((a, b) => b.score - a.score)[0];
+      const worstText = worst ? `${worst.time} (${severityLabel(worst.score, result)} 수준)` : "없음";
+      const highSeverityCount = result.anomalyRows.filter(r => ["매우 높음", "높음"].includes(severityLabel(r.score, result))).length;
+      const segmentText = segments.length
+        ? `${segments.length}개 구간, 평균 길이 ${fmt(avgSegment, 1)}개 관측치`
+        : "연속 이상 구간 없음";
+      const longestText = longestSegment
+        ? `${state.model.labels[longestSegment.start]} ~ ${state.model.labels[longestSegment.end]}`
+        : "해당 없음";
+      const thresholdText = `${result.options.threshold.toFixed(1)} percentile 기준으로 상위 ${(100 - result.options.threshold).toFixed(1)}%를 이상 후보로 분류`;
+      const variableSentence = variableInterpretation(topVars, count);
+      const modelSentence = `${methodLabel(result.method)}는 ${methodPerspective(result.method)} 관점의 탐지 방법입니다. ${methodGuide(result.method)}`;
+      els.interpretation.innerHTML = `
+        <div class="report-title">탐지 결과 해석</div>
+        <div class="report-lead">
+          전체 <b>${total.toLocaleString()}개</b> 관측치 중 <b>${count.toLocaleString()}개</b>가 이상으로 표시되었고,
+          이상 비율은 <b>${pct(ratio)}</b>입니다. 최고 위험 시점은 <b>${escapeHtml(worstText)}</b>입니다.
+        </div>
+        <div class="report-grid">
+          <div class="report-cell"><b>탐지 기준</b><span>${escapeHtml(thresholdText)}</span></div>
+          <div class="report-cell"><b>주요 원인 변수</b><span>${escapeHtml(topText)}</span></div>
+          <div class="report-cell"><b>구간 구조</b><span>${escapeHtml(segmentText)}</span></div>
+          <div class="report-cell"><b>최장 이상 구간</b><span>${escapeHtml(longestText)}</span></div>
+        </div>
+        <ul class="report-list">
+          <li>${escapeHtml(modelSentence)}</li>
+          <li>${escapeHtml(variableSentence)}</li>
+          <li>심각도가 높은 이상은 ${highSeverityCount.toLocaleString()}개이며, 이 시점들은 실제 원자료 그래프에서 값의 급등락이나 다변량 관계 붕괴 여부를 우선 확인해야 합니다.</li>
+          <li>${escapeHtml(strictness)} ${escapeHtml(thresholdAdviceDetail(result))}</li>
+        </ul>
+      `;
+      els.interpretation.className = ratio > 0.08 ? "callout warning" : "callout";
+    }
+
+    function renderModelGuide(result) {
+      const p = state.model.profile;
+      const ratios = result.compare.map(c => c.ratio);
+      const spread = ratios.length ? Math.max(...ratios) - Math.min(...ratios) : 0;
+      const consensus = spread < 0.015 ? "높음" : spread < 0.05 ? "보통" : "낮음";
+      const pcaText = result.components.pca?.explained ? `1축 설명력 ${pct(result.components.pca.explained)}` : `상관 최대 ${fmt(maxAbsOffDiagonal(state.model.corr), 2)}`;
+      const items = [
+        { name: "적용 모델", value: methodLabel(result.method), desc: result.methodNote },
+        { name: "판정 관점", value: methodPerspective(result.method), desc: methodGuide(result.method) },
+        { name: "자료 구조", value: `${result.vars.length}개 변수 / ${p.freq.label}`, desc: `${pcaText}, 결측률 ${pct(p.missingRate)}` },
+        { name: "모델 간 일치도", value: consensus, desc: `방법별 탐지 비율 차이 ${pct(spread)}. 값이 클수록 모델별 판단 차이가 큽니다.` },
+        { name: "Threshold 판정", value: thresholdAdvice(result), desc: `현재 ${result.options.threshold.toFixed(1)} percentile, cutoff ${fmt(result.cutoff, 3)}` },
+        { name: "검토 우선순위", value: reviewPriority(result), desc: "고점수 시점, 반복 변수, 연속 구간 순서로 원자료를 확인합니다." }
+      ];
+      els.modelGuide.innerHTML = items.map(item => `
+        <div class="insight-item">
+          <div class="name">${escapeHtml(item.name)}</div>
+          <div class="value">${escapeHtml(item.value)}</div>
+          <div class="desc">${escapeHtml(item.desc)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderDataQuality(result) {
+      const p = state.model.profile;
+      const corrPair = strongestCorrelationPair(state.model.numericCols, state.model.corr);
+      const missingStatus = p.missingRate === 0 ? "양호" : p.missingRate < 0.03 ? "경미" : "주의";
+      const dupTotal = p.duplicateRows + p.duplicateTime;
+      const dupStatus = dupTotal === 0 ? "양호" : dupTotal < Math.max(3, p.rowCount * 0.01) ? "경미" : "주의";
+      const freqStatus = p.freq.irregularity > 0.25 ? "불규칙" : p.freq.type === "unknown" ? "확인 필요" : "안정";
+      const items = [
+        { name: "시간 인덱스", value: p.dateCol || "행 번호", desc: p.dateCol ? `기간 ${p.periodLabel}` : "날짜 컬럼이 없어 행 순서를 시간 축으로 사용합니다." },
+        { name: "샘플링 안정성", value: freqStatus, desc: `${p.freq.label}, 불규칙도 ${pct(p.freq.irregularity || 0)}` },
+        { name: "결측치 영향", value: missingStatus, desc: `${p.missingTotal.toLocaleString()}개 결측, 전체 ${pct(p.missingRate)}` },
+        { name: "중복 위험", value: dupStatus, desc: `중복 행 ${p.duplicateRows.toLocaleString()}개, 중복 시간 ${p.duplicateTime.toLocaleString()}개` },
+        { name: "분석 변수 수", value: `${result.vars.length}개`, desc: `전체 숫자형 변수 ${p.numericCols.length}개 중 선택` },
+        { name: "상관 구조", value: corrPair ? fmt(Math.abs(corrPair.r), 2) : "없음", desc: corrPair ? `${corrPair.a} - ${corrPair.b}의 상관이 가장 큼` : "상관계수 계산 대상이 부족합니다." }
+      ];
+      els.dataQuality.innerHTML = items.map(item => `
+        <div class="insight-item">
+          <div class="name">${escapeHtml(item.name)}</div>
+          <div class="value">${escapeHtml(item.value)}</div>
+          <div class="desc">${escapeHtml(item.desc)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderQuality(result) {
+      const total = state.model.profile.rowCount;
+      const anomalyCount = result.anomalyRows.length;
+      const segments = anomalySegments(result.anomalies);
+      const segmentLengths = segments.map(s => s.end - s.start + 1);
+      const avgSegment = segmentLengths.length ? mean(segmentLengths) : 0;
+      const topVar = Object.entries(result.variableCounts).sort((a, b) => b[1] - a[1])[0];
+      const concentration = topVar && anomalyCount ? topVar[1] / anomalyCount : 0;
+      const scoreMedian = median(result.scores);
+      const separation = result.cutoff / Math.max(scoreMedian, 1e-9);
+      const strictText = anomalyCount / Math.max(total, 1) < 0.01 ? "엄격" : anomalyCount / Math.max(total, 1) > 0.08 ? "느슨" : "균형";
+      const highSeverityCount = result.anomalyRows.filter(r => ["매우 높음", "높음"].includes(severityLabel(r.score, result))).length;
+      const items = [
+        { name: "이상 비율", value: pct(anomalyCount / Math.max(total, 1)), desc: `${anomalyCount.toLocaleString()} / ${total.toLocaleString()} 시점` },
+        { name: "이상 구간 수", value: segments.length.toLocaleString(), desc: `평균 길이 ${fmt(avgSegment, 1)}개 관측치` },
+        { name: "상위 변수 집중도", value: pct(concentration), desc: topVar ? `${topVar[0]} 중심` : "기여 변수 없음" },
+        { name: "점수 분리도", value: `${fmt(separation, 2)}x`, desc: "threshold / 중앙 점수" },
+        { name: "고심각도 이상", value: highSeverityCount.toLocaleString(), desc: "매우 높음/높음 등급 시점" },
+        { name: "Threshold 상태", value: strictText, desc: `${result.options.threshold.toFixed(1)} percentile 기준` },
+        { name: "집계 방식", value: result.options.aggregate === "max" ? "OR" : "Mean", desc: "다변량 점수 결합 방식" },
+        { name: "해석 방향", value: reviewPriority(result), desc: "후속 검토 우선순위" }
+      ];
+      els.qualityGrid.innerHTML = items.map(item => `
+        <div class="quality-item">
+          <div class="name">${escapeHtml(item.name)}</div>
+          <div class="value">${escapeHtml(item.value)}</div>
+          <div class="desc">${escapeHtml(item.desc)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderSeriesChart(result) {
+      const model = state.model;
+      const focus = state.focusVar || result.vars[0];
+      const x = model.x;
+      const traces = [];
+      const showVars = result.vars.slice(0, 5);
+      showVars.forEach((v, idx) => {
+        traces.push({
+          x,
+          y: model.rawValues[v],
+          type: "scatter",
+          mode: "lines",
+          name: v,
+          line: { width: v === focus ? 2.4 : 1.25, color: palette(idx) },
+          opacity: v === focus ? 1 : 0.62,
+          hovertemplate: `${escapeHtml(v)}<br>%{x}<br>%{y}<extra></extra>`
+        });
+      });
+      const anomalyX = [];
+      const anomalyY = [];
+      const anomalyText = [];
+      result.anomalyRows.forEach(r => {
+        anomalyX.push(x[r.index]);
+        anomalyY.push(model.rawValues[focus][r.index]);
+        anomalyText.push(`score ${fmt(r.score, 3)}<br>${r.variables.join(", ")}`);
+      });
+      traces.push({
+        x: anomalyX,
+        y: anomalyY,
+        type: "scatter",
+        mode: "markers",
+        name: "Detected anomaly",
+        marker: { color: COLORS.coral, size: 9, symbol: "diamond", line: { color: "#fff", width: 1 } },
+        text: anomalyText,
+        hovertemplate: "%{x}<br>%{text}<br>%{y}<extra></extra>"
+      });
+      Plotly.react(els.seriesChart, traces, layoutBase("", "value"), plotConfig);
+    }
+
+    function renderScoreChart(result) {
+      const x = state.model.x;
+      const traces = [
+        {
+          x,
+          y: result.scores,
+          type: "scatter",
+          mode: "lines",
+          name: "Anomaly score",
+          line: { color: COLORS.violet, width: 1.5 },
+          fill: "tozeroy",
+          fillcolor: "rgba(110,86,207,0.12)",
+          hovertemplate: "%{x}<br>score %{y:.4f}<extra></extra>"
+        },
+        {
+          x: [x[0], x[x.length - 1]],
+          y: [result.cutoff, result.cutoff],
+          type: "scatter",
+          mode: "lines",
+          name: "Threshold",
+          line: { color: COLORS.coral, width: 2, dash: "dash" },
+          hoverinfo: "skip"
+        }
+      ];
+      Plotly.react(els.scoreChart, traces, layoutBase("", "score"), plotConfig);
+    }
+
+    function renderCountChart(result) {
+      const entries = Object.entries(result.variableCounts).sort((a, b) => b[1] - a[1]);
+      Plotly.react(els.countChart, [{
+        x: entries.map(e => e[0]),
+        y: entries.map(e => e[1]),
+        type: "bar",
+        name: "이상 개수",
+        showlegend: false,
+        marker: { color: entries.map((_, i) => palette(i)) },
+        hovertemplate: "%{x}<br>%{y}개<extra></extra>"
+      }], layoutSmall("변수별 이상 기여도", "count"), compactPlotConfig);
+    }
+
+    function renderThresholdChart(result) {
+      Plotly.react(els.thresholdChart, [{
+        x: result.sensitivity.map(d => d.p),
+        y: result.sensitivity.map(d => d.count),
+        type: "scatter",
+        mode: "lines+markers",
+        name: "탐지 개수",
+        showlegend: false,
+        line: { color: COLORS.teal, width: 2 },
+        marker: { size: 7 },
+        hovertemplate: "p%{x}<br>%{y}개<extra></extra>"
+      }], layoutSmall("percentile별 탐지 개수", "count"), compactPlotConfig);
+    }
+
+    function renderRollingChart(result) {
+      const focus = state.focusVar || result.vars[0];
+      const arr = state.model.values[focus];
+      const roll = rollingMeanStd(arr, result.options.window);
+      const x = state.model.x;
+      const upper = roll.mean.map((m, i) => m + roll.std[i]);
+      const lower = roll.mean.map((m, i) => m - roll.std[i]);
+      const traces = [
+        { x, y: arr, type: "scatter", mode: "lines", name: focus, line: { color: COLORS.blue, width: 1.2 } },
+        { x, y: roll.mean, type: "scatter", mode: "lines", name: "rolling mean", line: { color: COLORS.teal, width: 2 } },
+        { x, y: upper, type: "scatter", mode: "lines", name: "+1 std", line: { color: "rgba(217,130,43,0.7)", width: 1, dash: "dot" } },
+        { x, y: lower, type: "scatter", mode: "lines", name: "-1 std", line: { color: "rgba(217,130,43,0.7)", width: 1, dash: "dot" } }
+      ];
+      Plotly.react(els.rollingChart, traces, layoutSmall(`${focus} rolling`, "value"), compactPlotConfig);
+    }
+
+    function renderDecompChart(result) {
+      const focus = state.focusVar || result.vars[0];
+      const period = resolveSeasonPeriod(state.model, focus, result.options.seasonPeriod);
+      const d = result.components.decomposition || decomposeSeries(state.model.values[focus], period, Math.max(result.options.window, period * 2 + 1));
+      const x = state.model.x;
+      const traces = [
+        { x, y: state.model.values[focus], type: "scatter", mode: "lines", name: "original", line: { color: COLORS.blue, width: 1.1 } },
+        { x, y: d.trend, type: "scatter", mode: "lines", name: "trend", line: { color: COLORS.amber, width: 2 } },
+        { x, y: d.seasonal, type: "scatter", mode: "lines", name: "seasonal", line: { color: COLORS.green, width: 1.2 } },
+        { x, y: d.residual, type: "scatter", mode: "lines", name: "residual", line: { color: COLORS.coral, width: 1.2 } }
+      ];
+      Plotly.react(els.decompChart, traces, layoutSmall(`period ${period}`, "value"), compactPlotConfig);
+    }
+
+    function renderHistogram(result) {
+      Plotly.react(els.histChart, [{
+        x: result.scores,
+        type: "histogram",
+        nbinsx: 34,
+        marker: { color: "rgba(36,107,254,0.72)", line: { color: "#fff", width: 1 } },
+        name: "score"
+      }, {
+        x: [result.cutoff, result.cutoff],
+        y: [0, Math.max(1, result.scores.length / 8)],
+        type: "scatter",
+        mode: "lines",
+        name: "threshold",
+        line: { color: COLORS.coral, width: 2, dash: "dash" }
+      }], layoutSmall("점수 분포", "빈도"), compactPlotConfig);
+    }
+
+    function renderCorrelation(result) {
+      const cols = state.model.numericCols;
+      Plotly.react(els.corrChart, [{
+        x: cols,
+        y: cols,
+        z: state.model.corr,
+        type: "heatmap",
+        zmin: -1,
+        zmax: 1,
+        colorscale: [
+          [0, "#e5484d"],
+          [0.5, "#f8fafc"],
+          [1, "#0e9384"]
+        ],
+        hovertemplate: "%{y} vs %{x}<br>r=%{z:.3f}<extra></extra>"
+      }], layoutSmall("Pearson correlation", ""), compactPlotConfig);
+    }
+
+    function renderMissing(result) {
+      const cols = state.model.numericCols;
+      const rates = cols.map(c => state.model.missing[c] / Math.max(state.model.profile.rowCount, 1));
+      Plotly.react(els.missingChart, [{
+        x: cols,
+        y: rates.map(r => r * 100),
+        type: "bar",
+        name: "결측률",
+        showlegend: false,
+        marker: { color: rates.map(r => r > 0 ? COLORS.amber : COLORS.teal) },
+        hovertemplate: "%{x}<br>%{y:.2f}%<extra></extra>"
+      }], layoutSmall("결측률(%)", "%"), compactPlotConfig);
+    }
+
+    function renderStatsTable(result) {
+      const rows = state.model.stats.map(s => `
+        <tr>
+          <td>${escapeHtml(s.name)}</td>
+          <td>${fmt(s.mean, 3)}</td>
+          <td>${fmt(s.std, 3)}</td>
+          <td>${fmt(s.min, 3)}</td>
+          <td>${fmt(s.max, 3)}</td>
+          <td>${pct(s.missingRate)}</td>
+          <td><span class="badge ${s.trend === "뚜렷하지 않음" ? "green" : "amber"}">${escapeHtml(s.trend)}</span></td>
+          <td><span class="badge ${s.seasonality === "계절성 가능" ? "" : "green"}">${escapeHtml(s.seasonality)} ${s.seasonalPeriod || ""}</span></td>
+          <td><span class="badge ${s.stationarity === "정상성 가능" ? "green" : "amber"}">${escapeHtml(s.stationarity)}</span></td>
+        </tr>
+      `).join("");
+      els.statsTable.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>변수</th><th>평균</th><th>표준편차</th><th>최소</th><th>최대</th><th>결측률</th><th>추세</th><th>계절성</th><th>정상성</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderAnomalyTable(result) {
+      if (!result.anomalyRows.length) {
+        els.anomalyTable.innerHTML = `<div class="callout">현재 threshold에서는 이상으로 표시된 시점이 없습니다.</div>`;
+        return;
+      }
+      const focus = state.focusVar || result.vars[0];
+      const rows = result.anomalyRows.slice(0, 120).map(r => `
+        <tr>
+          <td>${escapeHtml(r.time)}</td>
+          <td>${fmt(r.score, 4)}</td>
+          <td><span class="badge ${severityClass(r.score, result)}">${escapeHtml(severityLabel(r.score, result))}</span></td>
+          <td>${r.variables.map(v => `<span class="badge red">${escapeHtml(v)}</span>`).join(" ")}</td>
+          <td>${fmt(r.values[focus], 4)}</td>
+        </tr>
+      `).join("");
+      els.anomalyTable.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>시간</th><th>점수</th><th>심각도</th><th>기여 변수</th><th>${escapeHtml(focus)} 값</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderSegmentTable(result) {
+      const segments = anomalySegments(result.anomalies);
+      if (!segments.length) {
+        els.segmentTable.innerHTML = `<div class="callout">연속된 이상 구간이 없습니다. threshold를 낮추거나 다른 모델을 비교해보세요.</div>`;
+        return;
+      }
+      const rows = segments.slice(0, 60).map(seg => {
+        const segmentRows = result.anomalyRows.filter(r => r.index >= seg.start && r.index <= seg.end);
+        const maxRow = segmentRows.slice().sort((a, b) => b.score - a.score)[0];
+        const varCounts = {};
+        segmentRows.forEach(r => r.variables.forEach(v => varCounts[v] = (varCounts[v] || 0) + 1));
+        const topVars = Object.entries(varCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([v, c]) => `${v}(${c})`).join(", ");
+        return `
+          <tr>
+            <td>${escapeHtml(state.model.labels[seg.start])}</td>
+            <td>${escapeHtml(state.model.labels[seg.end])}</td>
+            <td>${(seg.end - seg.start + 1).toLocaleString()}</td>
+            <td>${fmt(maxRow?.score ?? 0, 4)}</td>
+            <td><span class="badge ${severityClass(maxRow?.score ?? 0, result)}">${escapeHtml(severityLabel(maxRow?.score ?? 0, result))}</span></td>
+            <td>${escapeHtml(topVars || "-")}</td>
+          </tr>
+        `;
+      }).join("");
+      els.segmentTable.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>시작</th><th>종료</th><th>길이</th><th>최대 점수</th><th>심각도</th><th>주요 변수</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderCauseTable(result) {
+      if (!result.anomalyRows.length) {
+        els.causeTable.innerHTML = `<div class="callout">현재 설정에서는 설명할 이상 시점이 없습니다.</div>`;
+        return;
+      }
+      const rows = result.anomalyRows.slice().sort((a, b) => b.score - a.score).slice(0, 10).map(r => {
+        const variable = r.variables[0] || result.vars[0];
+        const dev = robustDeviation(variable, r.index);
+        return `
+          <tr>
+            <td>${escapeHtml(r.time)}</td>
+            <td><span class="badge ${severityClass(r.score, result)}">${escapeHtml(severityLabel(r.score, result))}</span></td>
+            <td>${escapeHtml(variable)}</td>
+            <td>${fmt(dev.value, 4)}</td>
+            <td>${escapeHtml(dev.text)}</td>
+            <td>${escapeHtml(causeSentence(result.method, variable, dev))}</td>
+          </tr>
+        `;
+      }).join("");
+      els.causeTable.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>시간</th><th>심각도</th><th>주요 변수</th><th>값</th><th>평소 대비</th><th>해석</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderCompare(result) {
+      els.compareGrid.innerHTML = result.compare.map(c => `
+        <div class="compare-item">
+          <div class="name">${escapeHtml(c.label)}</div>
+          <div class="count">${c.count.toLocaleString()}</div>
+          <div class="desc">${pct(c.ratio)} 탐지</div>
+        </div>
+      `).join("");
+    }
+
+    function renderCompareDetail(result) {
+      const selected = result.anomalies;
+      const selectedCount = Math.max(selected.filter(Boolean).length, 1);
+      const rows = result.compare.map(c => {
+        const overlap = c.flags ? c.flags.filter((flag, i) => flag && selected[i]).length : 0;
+        const agreement = overlap / selectedCount;
+        const label = agreement >= 0.75 ? "높음" : agreement >= 0.4 ? "보통" : "낮음";
+        return `
+          <tr>
+            <td>${escapeHtml(c.label)}</td>
+            <td>${c.count.toLocaleString()}</td>
+            <td>${pct(c.ratio)}</td>
+            <td>${overlap.toLocaleString()}</td>
+            <td><span class="badge ${agreement >= 0.75 ? "green" : agreement >= 0.4 ? "amber" : "red"}">${escapeHtml(label)}</span></td>
+            <td>${escapeHtml(compareSentence(c.name, agreement))}</td>
+          </tr>
+        `;
+      }).join("");
+      els.compareDetail.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>모델</th><th>탐지 수</th><th>비율</th><th>현재 결과와 겹침</th><th>일치도</th><th>해석</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function strongestCorrelationPair(cols, corr) {
+      let best = null;
+      for (let i = 0; i < cols.length; i++) {
+        for (let j = i + 1; j < cols.length; j++) {
+          const r = corr[i]?.[j];
+          if (!Number.isFinite(r)) continue;
+          if (!best || Math.abs(r) > Math.abs(best.r)) best = { a: cols[i], b: cols[j], r };
+        }
+      }
+      return best;
+    }
+
+    function robustDeviation(varName, index) {
+      const arr = state.model.values[varName] || [];
+      const raw = state.model.rawValues[varName]?.[index];
+      const value = Number.isFinite(raw) ? raw : arr[index];
+      const med = median(arr);
+      const scale = mad(arr) * 1.4826 || std(arr) || 1e-9;
+      const z = (arr[index] - med) / scale;
+      const direction = z >= 0 ? "높음" : "낮음";
+      return {
+        value,
+        z,
+        absZ: Math.abs(z),
+        direction,
+        text: `중앙값 대비 ${fmt(Math.abs(z), 2)}배 ${direction}`
+      };
+    }
+
+    function causeSentence(method, variable, dev) {
+      const base = `${variable} 값이 평소 분포보다 ${dev.direction === "높음" ? "높게" : "낮게"} 관측되었습니다.`;
+      if (method === "pca") return `${base} PCA 기준에서는 다른 변수들과의 정상적인 상관 구조에서도 벗어난 시점으로 해석됩니다.`;
+      if (method === "changepoint" || method === "cusum") return `${base} 단발성 스파이크보다 수준 변화나 누적 변화 가능성을 함께 봅니다.`;
+      if (method === "stl") return `${base} 추세와 계절성을 제거한 뒤에도 잔차가 큰 시점입니다.`;
+      if (method === "knn" || method === "lof" || method === "isolation") return `${base} 주변 관측치와의 거리 또는 밀도 관점에서도 이례적인 패턴입니다.`;
+      if (dev.absZ >= 3) return `${base} 강한 단변량 이탈이므로 센서 오류, 이벤트, 급격한 외부 조건 변화를 우선 검토합니다.`;
+      return `${base} 다른 선택 변수와 동시에 발생한 패턴까지 함께 확인합니다.`;
+    }
+
+    function compareSentence(method, agreement) {
+      if (agreement >= 0.75) return `${methodLabel(method)}도 현재 결과와 대부분 같은 시점을 이상으로 판단합니다.`;
+      if (agreement >= 0.4) return `${methodLabel(method)}는 일부 시점에서만 같은 판단을 하므로 모델 관점 차이를 확인해야 합니다.`;
+      return `${methodLabel(method)}와 현재 결과의 겹침이 작아, threshold 또는 모델 선택에 따른 민감도 차이가 큽니다.`;
+    }
+
+    function severityLabel(score, result) {
+      const hi = quantile(result.scores, 0.995);
+      const mid = quantile(result.scores, 0.99);
+      if (score >= hi) return "매우 높음";
+      if (score >= mid) return "높음";
+      if (score >= result.cutoff) return "주의";
+      return "보통";
+    }
+
+    function severityClass(score, result) {
+      const label = severityLabel(score, result);
+      if (label === "매우 높음") return "red";
+      if (label === "높음") return "amber";
+      if (label === "주의") return "";
+      return "green";
+    }
+
+    function methodPerspective(method) {
+      return {
+        zscore: "전역 분포 이탈",
+        iqr: "사분위 범위 이탈",
+        rolling: "국소 평균 이탈",
+        hampel: "국소 중앙값 이탈",
+        stl: "추세/계절 제거 후 잔차",
+        ewma: "단기 예측 오차",
+        cusum: "누적 평균 변화",
+        changepoint: "수준/분산 변화",
+        pca: "다변량 관계 붕괴",
+        knn: "주변 이웃 거리",
+        isolation: "고립 용이성",
+        lof: "국소 밀도 저하",
+        ensemble: "여러 기준의 합의"
+      }[method] || "자동 판단";
+    }
+
+    function methodGuide(method) {
+      return {
+        zscore: "값 하나가 전체 평균에서 얼마나 멀리 떨어졌는지 봅니다. 정상성이 강한 변수에 단순하고 빠릅니다.",
+        iqr: "극단값에 덜 민감한 사분위 기준입니다. 분포가 비대칭이어도 안정적인 편입니다.",
+        rolling: "최근 window의 평균/표준편차와 비교합니다. 수준이 천천히 변하는 시계열에 적합합니다.",
+        hampel: "최근 구간의 중앙값/MAD를 사용합니다. 스파이크성 이상에 강합니다.",
+        stl: "추세와 계절성을 제거한 뒤 잔차를 봅니다. 주기성이 뚜렷한 데이터에 좋습니다.",
+        ewma: "지수평활 예측과 실제값의 차이를 봅니다. 갑작스러운 단기 변화에 민감합니다.",
+        cusum: "작은 변화가 지속적으로 누적되는지를 봅니다. 평균 수준 이동 감지에 유리합니다.",
+        changepoint: "앞뒤 구간의 평균과 변동성 차이를 비교합니다. 제도/상태 전환 감지에 좋습니다.",
+        pca: "여러 변수의 정상적인 상관 구조로 복원되지 않는 관측치를 찾습니다. 다변량 센서 데이터에 잘 맞습니다.",
+        knn: "주변 관측치와 멀리 떨어진 점을 찾습니다. 군집 밖 이상치에 유리합니다.",
+        isolation: "무작위 분할로 빨리 고립되는 점을 찾습니다. 다변량 전역 이상치에 적합합니다.",
+        lof: "주변보다 밀도가 낮은 점을 찾습니다. 지역적 이상 패턴에 적합합니다.",
+        ensemble: "통계, rolling, 분해, 변화점, 다변량 모델 점수를 평균해 한 모델에 과하게 의존하지 않습니다."
+      }[method] || "데이터 특성에 맞는 모델을 자동으로 선택합니다.";
+    }
+
+    function thresholdAdvice(result) {
+      const ratio = result.anomalyRows.length / Math.max(state.model.profile.rowCount, 1);
+      if (ratio < 0.01) return "조금 완화 가능";
+      if (ratio > 0.08) return "조금 엄격하게";
+      return "현재 유지 권장";
+    }
+
+    function thresholdAdviceDetail(result) {
+      const ratio = result.anomalyRows.length / Math.max(state.model.profile.rowCount, 1);
+      const sens = result.sensitivity || [];
+      const near95 = sens.find(s => s.p === 95);
+      const near99 = sens.find(s => s.p === 99);
+      const compareText = near95 && near99
+        ? `95% 기준은 ${near95.count.toLocaleString()}개, 99% 기준은 ${near99.count.toLocaleString()}개를 탐지합니다.`
+        : "";
+      if (ratio < 0.01) return `${compareText} 놓친 이상이 우려되면 threshold를 95~97% 구간으로 낮춰 비교합니다.`;
+      if (ratio > 0.08) return `${compareText} 정상 변동까지 많이 포함될 수 있으므로 98~99% 구간에서 재확인합니다.`;
+      return `${compareText} 현재 설정은 과도하게 엄격하거나 느슨하지 않아 1차 판정 기준으로 사용할 수 있습니다.`;
+    }
+
+    function variableInterpretation(topVars, anomalyCount) {
+      if (!topVars.length || !anomalyCount) {
+        return "기여 변수가 특정 변수에 집중되지 않아 여러 변수의 결합 점수에 의해 이상으로 판단된 결과입니다.";
+      }
+      const [topName, topCount] = topVars[0];
+      const share = topCount / Math.max(anomalyCount, 1);
+      if (share >= 0.55) {
+        return `${topName} 변수가 전체 이상 시점의 ${pct(share)}에 관여하여, 해당 변수의 센서 오류·급격한 수준 변화·외부 이벤트 가능성을 우선 검토합니다.`;
+      }
+      if (topVars.length >= 2) {
+        return `${topVars.map(([v]) => v).join(", ")} 변수가 함께 반복되어 단일 변수 스파이크보다 다변량 패턴 변화 가능성이 큽니다.`;
+      }
+      return `${topName} 변수가 가장 많이 관여했지만 집중도는 높지 않아 다른 변수와의 동시 변화도 함께 확인해야 합니다.`;
+    }
+
+    function reviewPriority(result) {
+      const segments = anomalySegments(result.anomalies);
+      if (!result.anomalyRows.length) return "모델/threshold 재검토";
+      const longSeg = segments.some(s => s.end - s.start + 1 >= Math.max(3, Math.round(result.options.window / 4)));
+      if (longSeg) return "연속 구간 우선";
+      const topVar = Object.entries(result.variableCounts).sort((a, b) => b[1] - a[1])[0];
+      if (topVar && topVar[1] >= Math.max(2, result.anomalyRows.length * 0.45)) return `${topVar[0]} 집중 확인`;
+      return "고점수 시점 우선";
+    }
+
+    function exportAnomalyCsv() {
+      if (!state.result || !state.result.anomalyRows.length) {
+        showToast("저장할 이상 탐지 결과가 없습니다.");
+        return;
+      }
+      const vars = state.result.vars;
+      const header = ["time", "score", "severity", "contributing_variables", ...vars];
+      const lines = [header.map(csvEscape).join(",")];
+      state.result.anomalyRows.forEach(row => {
+        const values = [
+          row.time,
+          fmt(row.score, 6),
+          severityLabel(row.score, state.result),
+          row.variables.join("|"),
+          ...vars.map(v => row.values[v])
+        ];
+        lines.push(values.map(csvEscape).join(","));
+      });
+      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `anomaly_result_${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      showToast("이상 탐지 결과 CSV를 저장했습니다.");
+    }
+
+    function exportAnalysisReport() {
+      if (!state.result || !state.model) {
+        showToast("저장할 분석 결과가 없습니다.");
+        return;
+      }
+      const report = buildAnalysisReport();
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      const blob = new Blob([`\ufeff${report}`], { type: "text/plain;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `timeseries_anomaly_report_${stamp}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      showToast("분석 리포트를 저장했습니다.");
+    }
+
+    function buildAnalysisReport() {
+      const result = state.result;
+      const model = state.model;
+      const p = model.profile;
+      const total = p.rowCount;
+      const count = result.anomalyRows.length;
+      const ratio = count / Math.max(total, 1);
+      const topVars = Object.entries(result.variableCounts)
+        .sort((a, b) => b[1] - a[1])
+        .filter(([, c]) => c > 0)
+        .slice(0, 5);
+      const topVarText = topVars.length ? topVars.map(([v, c]) => `${v} ${c}회`).join(", ") : "특정 변수 집중 없음";
+      const segments = anomalySegments(result.anomalies);
+      const segmentLengths = segments.map(s => s.end - s.start + 1);
+      const longestSegment = segments.slice().sort((a, b) => (b.end - b.start) - (a.end - a.start))[0];
+      const longestText = longestSegment ? `${model.labels[longestSegment.start]} ~ ${model.labels[longestSegment.end]}` : "해당 없음";
+      const highSeverityCount = result.anomalyRows.filter(r => ["매우 높음", "높음"].includes(severityLabel(r.score, result))).length;
+      const worstRows = result.anomalyRows.slice().sort((a, b) => b.score - a.score).slice(0, 10);
+      const compareLines = result.compare
+        .slice()
+        .sort((a, b) => b.count - a.count)
+        .map(c => `- ${c.label}: ${c.count.toLocaleString()}개 (${pct(c.ratio)})`);
+      const statLines = result.vars.map(v => {
+        const s = model.stats.find(item => item.name === v);
+        if (!s) return `- ${v}: 통계량 없음`;
+        return `- ${v}: 평균 ${fmt(s.mean, 3)}, 표준편차 ${fmt(s.std, 3)}, 추세 ${s.trend}, 계절성 ${s.seasonality}, 정상성 ${s.stationarity}, 결측률 ${pct(s.missingRate)}`;
+      });
+      const anomalyLines = worstRows.length
+        ? worstRows.map((row, idx) => {
+            const values = row.variables.map(v => `${v}=${fmt(row.values[v], 3)}`).join(", ");
+            return `${idx + 1}. ${row.time} | 점수 ${fmt(row.score, 4)} | ${severityLabel(row.score, result)} | ${values}`;
+          })
+        : ["탐지된 이상 시점 없음"];
+      const segmentText = segments.length
+        ? `${segments.length.toLocaleString()}개 구간, 평균 길이 ${fmt(mean(segmentLengths), 1)}개 관측치, 최장 구간 ${longestText}`
+        : "연속 이상 구간 없음";
+
+      return [
+        "시계열 이상탐지 분석 리포트",
+        `저장 시각: ${new Date().toLocaleString("ko-KR")}`,
+        "",
+        "[1] 데이터 자동 인식",
+        `- 파일명: ${state.fileName || "데모 데이터"}`,
+        `- 관측치/컬럼: ${p.rowCount.toLocaleString()}행 / ${p.colCount.toLocaleString()}열`,
+        `- 시간 컬럼: ${p.dateCol || "자동 생성 인덱스"}`,
+        `- 전체 기간: ${p.periodLabel}`,
+        `- 샘플링 주기: ${p.freq.label}`,
+        `- 숫자형 변수: ${p.numericCols.join(", ")}`,
+        `- 분석 변수: ${result.vars.join(", ")}`,
+        `- 결측치: ${p.missingTotal.toLocaleString()}개 (${pct(p.missingRate)})`,
+        `- 중복: 행 ${p.duplicateRows.toLocaleString()}개, 시간 ${p.duplicateTime.toLocaleString()}개`,
+        "",
+        "[2] 탐지 설정",
+        `- 적용 방식: ${methodLabel(result.method)}`,
+        `- 판정 관점: ${methodPerspective(result.method)}`,
+        `- Threshold: ${result.options.threshold.toFixed(1)} percentile`,
+        `- Cutoff: ${fmt(result.cutoff, 6)}`,
+        `- Rolling window: ${result.options.window}개 관측치`,
+        `- 다변량 점수 집계: ${result.options.aggregate === "max" ? "최대값 OR" : "평균값"}`,
+        `- 기준 설명: ${methodGuide(result.method)}`,
+        "",
+        "[3] 탐지 요약",
+        `- 이상 시점: ${count.toLocaleString()}개 / ${total.toLocaleString()}개 (${pct(ratio)})`,
+        `- 심각도 높음 이상: ${highSeverityCount.toLocaleString()}개`,
+        `- 주요 원인 변수: ${topVarText}`,
+        `- 이상 구간: ${segmentText}`,
+        `- Threshold 판단: ${thresholdAdvice(result)}. ${thresholdAdviceDetail(result)}`,
+        `- 검토 우선순위: ${reviewPriority(result)}`,
+        "",
+        "[4] 변수별 기본 분석",
+        ...statLines,
+        "",
+        "[5] 모델별 탐지 비율 비교",
+        ...(compareLines.length ? compareLines : ["- 비교 결과 없음"]),
+        "",
+        "[6] 고점수 이상 시점 TOP 10",
+        ...anomalyLines,
+        "",
+        "[7] 해석 메모",
+        `- ${variableInterpretation(topVars, count)}`,
+        "- 실제 이상 여부는 원본 시계열 그래프에서 값의 급등락, 결측 또는 중복 시점, 주변 시점의 연속성, 변수 간 동시 변화를 함께 확인해 판단합니다."
+      ].join("\n");
+    }
+
+    function anomalySegments(flags) {
+      const segments = [];
+      let start = -1;
+      flags.forEach((flag, i) => {
+        if (flag && start < 0) start = i;
+        if ((!flag || i === flags.length - 1) && start >= 0) {
+          const end = flag && i === flags.length - 1 ? i : i - 1;
+          segments.push({ start, end });
+          start = -1;
+        }
+      });
+      return segments;
+    }
+
+    function layoutBase(title, ytitle) {
+      return {
+        title: { text: title, font: { size: 14 } },
+        margin: { l: 48, r: 20, t: 90, b: 42 },
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#fbfdff",
+        hovermode: "x unified",
+        legend: { orientation: "h", x: 0, y: 1.13, xanchor: "left", yanchor: "bottom", font: { size: 11 }, itemwidth: 72 },
+        xaxis: { gridcolor: "#e6edf5", zeroline: false, rangeslider: { visible: true, thickness: 0.06 } },
+        yaxis: { title: ytitle, gridcolor: "#e6edf5", zeroline: false }
+      };
+    }
+
+    function layoutSmall(title, ytitle) {
+      return {
+        title: { text: title, font: { size: 13 } },
+        margin: { l: 45, r: 15, t: 38, b: 52 },
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#fbfdff",
+        hovermode: "closest",
+        showlegend: true,
+        legend: { orientation: "h", x: 0, y: 1.16, font: { size: 10 } },
+        xaxis: { gridcolor: "#e6edf5", zeroline: false, automargin: true },
+        yaxis: { title: ytitle, gridcolor: "#e6edf5", zeroline: false, automargin: true }
+      };
+    }
+
+    function rollingMeanStd(arr, window) {
+      const w = Math.max(3, Math.round(window));
+      const meanArr = [];
+      const stdArr = [];
+      for (let i = 0; i < arr.length; i++) {
+        const start = Math.max(0, i - w + 1);
+        const slice = arr.slice(start, i + 1);
+        meanArr.push(mean(slice));
+        stdArr.push(std(slice) || std(arr) || 1e-9);
+      }
+      return { mean: meanArr, std: stdArr };
+    }
+
+    function rollingMedianMadScore(arr, window) {
+      const w = Math.max(3, Math.round(window));
+      const scores = [];
+      for (let i = 0; i < arr.length; i++) {
+        const half = Math.floor(w / 2);
+        const start = Math.max(0, i - half);
+        const end = Math.min(arr.length, i + half + 1);
+        const slice = arr.slice(start, end);
+        const med = median(slice);
+        const scale = mad(slice) * 1.4826 || std(slice) || 1e-9;
+        scores.push(Math.abs((arr[i] - med) / scale));
+      }
+      return scores;
+    }
+
+    function decomposeSeries(arr, period, trendWindow) {
+      const trend = centeredMovingAverage(arr, Math.max(3, makeOdd(trendWindow)));
+      const detrended = arr.map((x, i) => x - trend[i]);
+      const seasonalPattern = Array(period).fill(0).map((_, r) => {
+        const vals = detrended.filter((_, i) => i % period === r);
+        return vals.length ? median(vals) : 0;
+      });
+      const center = mean(seasonalPattern);
+      const pattern = seasonalPattern.map(v => v - center);
+      const seasonal = arr.map((_, i) => pattern[i % period]);
+      const residual = arr.map((x, i) => x - trend[i] - seasonal[i]);
+      return { trend, seasonal, residual, period };
+    }
+
+    function centeredMovingAverage(arr, window) {
+      const half = Math.floor(window / 2);
+      return arr.map((_, i) => {
+        const start = Math.max(0, i - half);
+        const end = Math.min(arr.length, i + half + 1);
+        return mean(arr.slice(start, end));
+      });
+    }
+
+    function normalizeScore(arr) {
+      const finite = arr.filter(Number.isFinite);
+      if (!finite.length) return arr.map(() => 0);
+      const lo = quantile(finite, 0.02);
+      const hi = quantile(finite, 0.995);
+      const span = Math.max(hi - lo, 1e-9);
+      return arr.map(v => clamp((v - lo) / span, 0, 1));
+    }
+
+    function sampleIndices(n, size, seed) {
+      const idx = Array.from({ length: n }, (_, i) => i);
+      for (let i = idx.length - 1; i > 0; i--) {
+        const j = Math.floor(rand(seed + i * 13) * (i + 1));
+        [idx[i], idx[j]] = [idx[j], idx[i]];
+      }
+      return idx.slice(0, size);
+    }
+
+    function seededNoise(i, scale) {
+      return (rand(i * 9301 + 49297) + rand(i * 233 + 97) - 1) * scale;
+    }
+
+    function rand(seed) {
+      const x = Math.sin(seed * 12.9898) * 43758.5453123;
+      return x - Math.floor(x);
+    }
+
+    function mean(arr) {
+      const vals = arr.filter(Number.isFinite);
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    }
+
+    function std(arr) {
+      const vals = arr.filter(Number.isFinite);
+      if (vals.length < 2) return 0;
+      const m = mean(vals);
+      return Math.sqrt(vals.reduce((s, v) => s + (v - m) ** 2, 0) / (vals.length - 1));
+    }
+
+    function median(arr) {
+      return quantile(arr, 0.5);
+    }
+
+    function mad(arr) {
+      const med = median(arr);
+      return median(arr.map(v => Math.abs(v - med)));
+    }
+
+    function quantile(arr, q) {
+      const vals = arr.filter(Number.isFinite).slice().sort((a, b) => a - b);
+      if (!vals.length) return 0;
+      const pos = (vals.length - 1) * q;
+      const base = Math.floor(pos);
+      const rest = pos - base;
+      return vals[base + 1] !== undefined ? vals[base] + rest * (vals[base + 1] - vals[base]) : vals[base];
+    }
+
+    function linearRegression(xs, ys) {
+      const mx = mean(xs);
+      const my = mean(ys);
+      let num = 0;
+      let den = 0;
+      for (let i = 0; i < xs.length; i++) {
+        num += (xs[i] - mx) * (ys[i] - my);
+        den += (xs[i] - mx) ** 2;
+      }
+      const slope = den ? num / den : 0;
+      return { slope, intercept: my - slope * mx };
+    }
+
+    function pearson(a, b) {
+      const n = Math.min(a.length, b.length);
+      const av = a.slice(0, n);
+      const bv = b.slice(0, n);
+      const ma = mean(av);
+      const mb = mean(bv);
+      let num = 0, da = 0, db = 0;
+      for (let i = 0; i < n; i++) {
+        const xa = av[i] - ma;
+        const xb = bv[i] - mb;
+        num += xa * xb;
+        da += xa * xa;
+        db += xb * xb;
+      }
+      return da && db ? num / Math.sqrt(da * db) : 0;
+    }
+
+    function autocorr(arr, lag) {
+      if (lag <= 0 || lag >= arr.length) return 0;
+      return pearson(arr.slice(0, arr.length - lag), arr.slice(lag));
+    }
+
+    function euclidean(a, b) {
+      let sum = 0;
+      for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2;
+      return Math.sqrt(sum);
+    }
+
+    function makeOdd(n) {
+      n = Math.round(n);
+      return n % 2 ? n : n + 1;
+    }
+
+    function clamp(v, min, max) {
+      return Math.min(max, Math.max(min, v));
+    }
+
+    function round(v, digits) {
+      const p = 10 ** digits;
+      return Math.round(v * p) / p;
+    }
+
+    function fmt(v, digits = 2) {
+      if (!Number.isFinite(v)) return "-";
+      const abs = Math.abs(v);
+      if (abs >= 1000) return v.toLocaleString(undefined, { maximumFractionDigits: digits });
+      if (abs > 0 && abs < 0.001) return v.toExponential(2);
+      return v.toLocaleString(undefined, { maximumFractionDigits: digits });
+    }
+
+    function pct(v) {
+      if (!Number.isFinite(v)) return "0%";
+      return `${(v * 100).toFixed(v < 0.01 && v > 0 ? 2 : 1)}%`;
+    }
+
+    function formatDate(d) {
+      if (!(d instanceof Date)) return "";
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function formatDateOnly(d) {
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+
+    function formatShortRange(range) {
+      if (!range.includes("~")) return range;
+      const [a, b] = range.split("~").map(s => s.trim().slice(0, 10));
+      return `${a} ~ ${b}`;
+    }
+
+    function formatDuration(ms) {
+      const sec = ms / 1000;
+      if (sec < 60) return `${fmt(sec, 1)}초`;
+      const min = sec / 60;
+      if (min < 60) return `${fmt(min, 1)}분`;
+      const hr = min / 60;
+      if (hr < 48) return `${fmt(hr, 1)}시간`;
+      const day = hr / 24;
+      if (day < 45) return `${fmt(day, 1)}일`;
+      return `${fmt(day / 30.4375, 1)}개월`;
+    }
+
+    function methodLabel(method) {
+      return {
+        auto: "자동 추천",
+        zscore: "Z-score",
+        iqr: "IQR",
+        rolling: "Moving Average",
+        hampel: "Hampel Filter",
+        stl: "STL-like 분해",
+        ewma: "EWMA 잔차",
+        cusum: "CUSUM",
+        changepoint: "변화점 탐지",
+        pca: "PCA 복원오차",
+        knn: "KNN Distance",
+        isolation: "Isolation Forest",
+        lof: "Local Outlier Factor",
+        ensemble: "앙상블"
+      }[method] || method;
+    }
+
+    function palette(i) {
+      return [COLORS.blue, COLORS.teal, COLORS.coral, COLORS.amber, COLORS.violet, COLORS.green, COLORS.slate][i % 7];
+    }
+
+    function setStatus(text, icon) {
+      els.statusChip.innerHTML = `<i data-lucide="${icon}"></i>${escapeHtml(text)}`;
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function showToast(message) {
+      els.toast.textContent = message;
+      els.toast.classList.add("show");
+      setTimeout(() => els.toast.classList.remove("show"), 3600);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/`/g, "&#096;");
+    }
+
+    function csvEscape(value) {
+      const s = String(value ?? "");
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    }
+  </script>
+</body>
+</html>
