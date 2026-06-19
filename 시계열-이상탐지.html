@@ -458,16 +458,29 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+      align-items: start;
     }
     .info-item {
       border: 1px solid var(--line);
       border-radius: 8px;
       padding: 11px;
-      min-height: 74px;
+      min-height: 68px;
       background: #fbfdff;
+      align-self: start;
     }
     .info-item .k { color: var(--muted); font-size: 12px; font-weight: 800; }
     .info-item .v { margin-top: 5px; font-weight: 900; word-break: break-word; overflow-wrap: anywhere; line-height: 1.28; }
+    .info-item .v.long-list {
+      font-size: 12px;
+      line-height: 1.38;
+    }
+    .info-item .more {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+    }
     .callout {
       border-left: 4px solid var(--teal);
       background: #ecfdf7;
@@ -1028,6 +1041,9 @@
     const els = {};
     const plotConfig = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] };
     const compactPlotConfig = { ...plotConfig, displayModeBar: false };
+    const DEMO_ROW_LIMIT = 720;
+    const ANALYSIS_ROW_LIMIT = 1600;
+    const HEAVY_MODEL_ROW_LIMIT = 1200;
 
     document.addEventListener("DOMContentLoaded", () => {
       cacheEls();
@@ -1167,7 +1183,8 @@
             dynamicTyping: false
           });
           if (parsed.data && parsed.data.length) {
-            initializeData(parsed.data, "air_quality_uci_multivariate.csv");
+            const demoRows = parsed.data.slice(0, Math.min(parsed.data.length, DEMO_ROW_LIMIT));
+            initializeData(demoRows, "air_quality_uci_multivariate.csv");
             return;
           }
         }
@@ -1227,13 +1244,18 @@
         showToast("분석할 행이 없습니다.");
         return;
       }
-      const model = buildDataModel(cleanRows);
+      const sourceRowCount = cleanRows.length;
+      const analysisRows = sourceRowCount > ANALYSIS_ROW_LIMIT ? sampleRowsEvenly(cleanRows, ANALYSIS_ROW_LIMIT) : cleanRows;
+      const sampledForSpeed = analysisRows.length < sourceRowCount;
+      const model = buildDataModel(analysisRows);
       if (!model.numericCols.length) {
         showToast("숫자형 변수를 찾지 못했습니다. CSV에 수치 열이 필요합니다.");
         return;
       }
+      model.profile.sourceRowCount = sourceRowCount;
+      model.profile.sampledForSpeed = sampledForSpeed;
       state.fileName = fileName;
-      state.rawRows = cleanRows;
+      state.rawRows = analysisRows;
       state.model = model;
       state.selectedVars = model.numericCols.slice(0, Math.min(6, model.numericCols.length));
       state.focusVar = state.selectedVars[0] || model.numericCols[0];
@@ -1246,6 +1268,9 @@
       els.dashboard.style.display = "";
       refreshControls();
       recompute();
+      if (sampledForSpeed) {
+        showToast(`큰 CSV라 ${sourceRowCount.toLocaleString()}행 중 ${analysisRows.length.toLocaleString()}행을 균등 샘플링해 분석했습니다.`);
+      }
       setStatus("분석 완료", "check-circle-2");
     }
 
@@ -1660,7 +1685,7 @@
       const focusStat = model.stats.find(s => s.name === (state.focusVar || vars[0]));
       const corrStrong = maxAbsOffDiagonal(model.corr) > 0.72;
       if (vars.length > 2 && corrStrong) return "pca";
-      if (vars.length > 1 && model.profile.rowCount <= 5000) return "ensemble";
+      if (vars.length > 1 && model.profile.rowCount <= ANALYSIS_ROW_LIMIT) return "ensemble";
       if (focusStat && (focusStat.trendStrength > 0.6 || focusStat.seasonScore > 0.35)) return "stl";
       return "rolling";
     }
@@ -1831,7 +1856,7 @@
 
     function scoreEnsemble(model, vars, options) {
       const methods = ["zscore", "iqr", "rolling", "hampel", "stl", "ewma", "cusum", "changepoint", "pca"];
-      if (model.profile.rowCount <= 4000) methods.push("isolation");
+      if (model.profile.rowCount <= HEAVY_MODEL_ROW_LIMIT) methods.push("isolation");
       const packs = methods.map(m => computeScores(model, vars, { ...options, algorithm: m }));
       const scoresByMethod = packs.map(p => normalizeScore(p.overallScores));
       const overall = model.x.map((_, i) => mean(scoresByMethod.map(s => s[i])));
@@ -1993,7 +2018,7 @@
 
     function compareMethods(model, vars, options) {
       const names = ["zscore", "iqr", "rolling", "hampel", "stl", "ewma", "cusum", "changepoint", "pca"];
-      if (model.profile.rowCount <= 2600) names.push("knn", "isolation", "lof");
+      if (model.profile.rowCount <= HEAVY_MODEL_ROW_LIMIT) names.push("knn", "isolation", "lof");
       return names.map(name => {
         const pack = computeScores(model, vars, { ...options, algorithm: name });
         const cutoff = quantile(pack.overallScores, options.threshold / 100);
@@ -2090,20 +2115,24 @@
 
     function renderInfo(result) {
       const p = state.model.profile;
+      const rowText = p.sampledForSpeed
+        ? `${p.rowCount.toLocaleString()}행 / ${p.colCount.toLocaleString()}열`
+        : `${p.rowCount.toLocaleString()}행 / ${p.colCount.toLocaleString()}열`;
+      const rowSub = p.sampledForSpeed ? `원본 ${p.sourceRowCount.toLocaleString()}행 중 균등 샘플` : "";
       const info = [
-        ["파일명", state.fileName || "데모 데이터"],
-        ["날짜/시간 컬럼", p.dateCol || "자동 생성 인덱스"],
-        ["행/열 수", `${p.rowCount.toLocaleString()}행 / ${p.colCount.toLocaleString()}열`],
-        ["숫자형 변수", p.numericCols.join(", ")],
-        ["분석 변수", result.vars.join(", ")],
-        ["샘플링 주기", p.freq.label],
-        ["결측치", `${p.missingTotal.toLocaleString()}개 (${pct(p.missingRate)})`],
-        ["중복", `행 ${p.duplicateRows.toLocaleString()}개, 시간 ${p.duplicateTime.toLocaleString()}개`]
+        { key: "파일명", value: state.fileName || "데모 데이터" },
+        { key: "날짜/시간 컬럼", value: p.dateCol || "자동 생성 인덱스" },
+        { key: "행/열 수", html: `${escapeHtml(rowText)}${rowSub ? `<span class="more">${escapeHtml(rowSub)}</span>` : ""}` },
+        { key: "숫자형 변수", html: formatColumnSummary(p.numericCols, 5), long: true },
+        { key: "분석 변수", html: formatColumnSummary(result.vars, 5), long: true },
+        { key: "샘플링 주기", value: p.freq.label },
+        { key: "결측치", value: `${p.missingTotal.toLocaleString()}개 (${pct(p.missingRate)})` },
+        { key: "중복", value: `행 ${p.duplicateRows.toLocaleString()}개, 시간 ${p.duplicateTime.toLocaleString()}개` }
       ];
-      els.dataInfo.innerHTML = info.map(([k, v]) => `
+      els.dataInfo.innerHTML = info.map(item => `
         <div class="info-item">
-          <div class="k">${escapeHtml(k)}</div>
-          <div class="v">${escapeHtml(v)}</div>
+          <div class="k">${escapeHtml(item.key)}</div>
+          <div class="v ${item.long ? "long-list" : ""}">${item.html ?? escapeHtml(item.value)}</div>
         </div>
       `).join("");
     }
@@ -2938,6 +2967,24 @@
       return idx.slice(0, size);
     }
 
+    function sampleRowsEvenly(rows, limit) {
+      if (rows.length <= limit) return rows;
+      const picked = [];
+      const used = new Set();
+      const step = (rows.length - 1) / Math.max(limit - 1, 1);
+      for (let i = 0; i < limit; i++) {
+        const idx = Math.round(i * step);
+        if (!used.has(idx)) {
+          picked.push(rows[idx]);
+          used.add(idx);
+        }
+      }
+      for (let i = 0; picked.length < limit && i < rows.length; i++) {
+        if (!used.has(i)) picked.push(rows[i]);
+      }
+      return picked;
+    }
+
     function seededNoise(i, scale) {
       return (rand(i * 9301 + 49297) + rand(i * 233 + 97) - 1) * scale;
     }
@@ -3043,6 +3090,13 @@
     function pct(v) {
       if (!Number.isFinite(v)) return "0%";
       return `${(v * 100).toFixed(v < 0.01 && v > 0 ? 2 : 1)}%`;
+    }
+
+    function formatColumnSummary(cols, limit = 5) {
+      if (!cols || !cols.length) return "없음";
+      const shown = cols.slice(0, limit).map(escapeHtml).join(", ");
+      const rest = cols.length - limit;
+      return rest > 0 ? `${shown}<span class="more">외 ${rest.toLocaleString()}개</span>` : shown;
     }
 
     function formatDate(d) {
