@@ -1335,7 +1335,8 @@
     function buildDataModel(rows) {
       const columns = Object.keys(rows[0] || {});
       const dateCol = detectDateColumn(rows, columns);
-      const numericCols = detectNumericColumns(rows, columns, dateCol);
+      const labelCol = detectLabelColumn(rows, columns, dateCol);
+      const numericCols = detectNumericColumns(rows, columns, dateCol, labelCol);
       const parsed = rows.map((row, originalIndex) => {
         const date = dateCol ? parseDateValue(row[dateCol]) : null;
         return { row, originalIndex, date };
@@ -1344,6 +1345,7 @@
 
       const x = parsed.map((p, idx) => p.date ? new Date(p.date) : idx);
       const labels = parsed.map((p, idx) => p.date ? formatDate(p.date) : String(idx + 1));
+      const groundTruth = labelCol ? parsed.map(p => parseLabelValue(p.row[labelCol])) : null;
       const values = {};
       const rawValues = {};
       const missing = {};
@@ -1378,15 +1380,18 @@
         rowCount: parsed.length,
         colCount: columns.length,
         dateCol,
+        labelCol,
         numericCols,
         periodLabel: dateCol && parsed.length ? `${formatDate(parsed[0].date)} ~ ${formatDate(parsed[parsed.length - 1].date)}` : "행 번호 기준",
         duplicateRows,
         duplicateTime,
         missingTotal: Object.values(missing).reduce((a, b) => a + b, 0),
         missingRate: numericCols.length ? Object.values(missing).reduce((a, b) => a + b, 0) / (numericCols.length * parsed.length) : 0,
+        labelCount: groundTruth ? groundTruth.filter(v => v !== null).length : 0,
+        positiveLabelCount: groundTruth ? groundTruth.filter(Boolean).length : 0,
         freq
       };
-      return { rows: parsed, columns, dateCol, numericCols, x, labels, values, rawValues, missing, stats, corr, profile };
+      return { rows: parsed, columns, dateCol, labelCol, numericCols, x, labels, groundTruth, values, rawValues, missing, stats, corr, profile };
     }
 
     function detectDateColumn(rows, columns) {
@@ -1409,10 +1414,34 @@
       return best.score >= 0.72 ? best.col : null;
     }
 
-    function detectNumericColumns(rows, columns, dateCol) {
+    function detectLabelColumn(rows, columns, dateCol) {
+      const labelNamePattern = /(anomaly|anomalies|is_anomaly|outlier|fault|failure|label|target|class|ground[_\s-]*truth|정답|라벨|이상여부|이상_?라벨|고장|불량)/i;
+      const sample = rows.slice(0, Math.min(rows.length, 400));
+      let best = { col: null, score: 0 };
+      columns.forEach(col => {
+        if (col === dateCol || !labelNamePattern.test(col)) return;
+        let valid = 0;
+        let nonEmpty = 0;
+        let positives = 0;
+        sample.forEach(row => {
+          const parsed = parseLabelValue(row[col]);
+          if (parsed === null) return;
+          nonEmpty += 1;
+          valid += 1;
+          if (parsed) positives += 1;
+        });
+        if (!nonEmpty) return;
+        const balanceBonus = positives > 0 && positives < valid ? 0.2 : 0;
+        const score = valid / nonEmpty + balanceBonus;
+        if (score > best.score) best = { col, score };
+      });
+      return best.score >= 0.8 ? best.col : null;
+    }
+
+    function detectNumericColumns(rows, columns, dateCol, labelCol) {
       const sample = rows.slice(0, Math.min(rows.length, 300));
       return columns.filter(col => {
-        if (col === dateCol) return false;
+        if (col === dateCol || col === labelCol) return false;
         let numeric = 0;
         let nonEmpty = 0;
         sample.forEach(row => {
@@ -1469,6 +1498,18 @@
       const dt = new Date(time);
       if (dt.getFullYear() < 1900 || dt.getFullYear() > 2200) return null;
       return dt;
+    }
+
+    function parseLabelValue(value) {
+      if (value === null || value === undefined) return null;
+      const raw = String(value).trim();
+      if (!raw) return null;
+      const lower = raw.toLowerCase();
+      if (["1", "true", "t", "yes", "y", "anomaly", "anomalous", "outlier", "fault", "failure", "abnormal", "attack", "이상", "고장", "불량"].includes(lower)) return true;
+      if (["0", "false", "f", "no", "n", "normal", "정상", "양호"].includes(lower)) return false;
+      const num = Number(lower);
+      if (Number.isFinite(num)) return num > 0;
+      return null;
     }
 
     function parseNumberish(value) {
@@ -1662,6 +1703,7 @@
         });
       });
       const compare = compareMethods(model, vars, options);
+      const groundTruthEval = evaluateGroundTruth(model.groundTruth, anomalies);
       return {
         method,
         methodRequested: options.algorithm,
@@ -1676,6 +1718,7 @@
         components: base.components,
         options,
         compare,
+        groundTruthEval,
         sensitivity: buildSensitivity(scores),
         methodNote: base.note
       };
@@ -2029,6 +2072,26 @@
       });
     }
 
+    function evaluateGroundTruth(labels, predictions) {
+      if (!labels || !labels.length) return null;
+      let tp = 0, fp = 0, tn = 0, fn = 0, labeledCount = 0;
+      labels.forEach((label, i) => {
+        if (label === null || label === undefined) return;
+        labeledCount += 1;
+        const pred = Boolean(predictions[i]);
+        if (label && pred) tp += 1;
+        else if (!label && pred) fp += 1;
+        else if (!label && !pred) tn += 1;
+        else if (label && !pred) fn += 1;
+      });
+      if (!labeledCount) return null;
+      const precision = tp + fp ? tp / (tp + fp) : 0;
+      const recall = tp + fn ? tp / (tp + fn) : 0;
+      const f1 = precision + recall ? (2 * precision * recall) / (precision + recall) : 0;
+      const accuracy = (tp + tn) / Math.max(labeledCount, 1);
+      return { tp, fp, tn, fn, labeledCount, precision, recall, f1, accuracy };
+    }
+
     function buildSensitivity(scores) {
       return [80, 85, 90, 92, 95, 97, 97.5, 98, 99, 99.5].map(p => {
         const cutoff = quantile(scores, p / 100);
@@ -2126,6 +2189,7 @@
         { key: "숫자형 변수", html: formatColumnSummary(p.numericCols, 5), long: true },
         { key: "분석 변수", html: formatColumnSummary(result.vars, 5), long: true },
         { key: "샘플링 주기", value: p.freq.label },
+        { key: "정답 라벨", value: p.labelCol ? `${p.labelCol} (${p.positiveLabelCount.toLocaleString()}개 이상 라벨)` : "없음" },
         { key: "결측치", value: `${p.missingTotal.toLocaleString()}개 (${pct(p.missingRate)})` },
         { key: "중복", value: `행 ${p.duplicateRows.toLocaleString()}개, 시간 ${p.duplicateTime.toLocaleString()}개` }
       ];
@@ -2162,6 +2226,9 @@
       const thresholdText = `${result.options.threshold.toFixed(1)} percentile 기준으로 상위 ${(100 - result.options.threshold).toFixed(1)}%를 이상 후보로 분류`;
       const variableSentence = variableInterpretation(topVars, count);
       const modelSentence = `${methodLabel(result.method)}는 ${methodPerspective(result.method)} 관점의 탐지 방법입니다. ${methodGuide(result.method)}`;
+      const labelSentence = result.groundTruthEval
+        ? `정답 라벨 ${result.groundTruthEval.labelCol || state.model.profile.labelCol} 기준으로 Precision ${pct(result.groundTruthEval.precision)}, Recall ${pct(result.groundTruthEval.recall)}, F1 ${pct(result.groundTruthEval.f1)}입니다.`
+        : "정답 라벨 컬럼이 없는 데이터이므로 Precision/Recall 대신 이상 비율, 점수 분리도, 모델 간 일치도로 탐지 품질을 판단합니다.";
       els.interpretation.innerHTML = `
         <div class="report-title">탐지 결과 해석</div>
         <div class="report-lead">
@@ -2177,6 +2244,7 @@
         <ul class="report-list">
           <li>${escapeHtml(modelSentence)}</li>
           <li>${escapeHtml(variableSentence)}</li>
+          <li>${escapeHtml(labelSentence)}</li>
           <li>심각도가 높은 이상은 ${highSeverityCount.toLocaleString()}개이며, 이 시점들은 실제 원자료 그래프에서 값의 급등락이나 다변량 관계 붕괴 여부를 우선 확인해야 합니다.</li>
           <li>${escapeHtml(strictness)} ${escapeHtml(thresholdAdviceDetail(result))}</li>
         </ul>
@@ -2243,11 +2311,19 @@
       const separation = result.cutoff / Math.max(scoreMedian, 1e-9);
       const strictText = anomalyCount / Math.max(total, 1) < 0.01 ? "엄격" : anomalyCount / Math.max(total, 1) > 0.08 ? "느슨" : "균형";
       const highSeverityCount = result.anomalyRows.filter(r => ["매우 높음", "높음"].includes(severityLabel(r.score, result))).length;
+      const labelItems = result.groundTruthEval ? [
+        { name: "Precision", value: pct(result.groundTruthEval.precision), desc: `TP ${result.groundTruthEval.tp}, FP ${result.groundTruthEval.fp}` },
+        { name: "Recall", value: pct(result.groundTruthEval.recall), desc: `TP ${result.groundTruthEval.tp}, FN ${result.groundTruthEval.fn}` },
+        { name: "F1 score", value: pct(result.groundTruthEval.f1), desc: `라벨 ${result.groundTruthEval.labeledCount.toLocaleString()}개 기준` }
+      ] : [
+        { name: "정답 라벨", value: "없음", desc: "label/anomaly 컬럼이 있으면 Precision, Recall, F1을 자동 계산" }
+      ];
       const items = [
         { name: "이상 비율", value: pct(anomalyCount / Math.max(total, 1)), desc: `${anomalyCount.toLocaleString()} / ${total.toLocaleString()} 시점` },
         { name: "이상 구간 수", value: segments.length.toLocaleString(), desc: `평균 길이 ${fmt(avgSegment, 1)}개 관측치` },
         { name: "상위 변수 집중도", value: pct(concentration), desc: topVar ? `${topVar[0]} 중심` : "기여 변수 없음" },
         { name: "점수 분리도", value: `${fmt(separation, 2)}x`, desc: "threshold / 중앙 점수" },
+        ...labelItems,
         { name: "고심각도 이상", value: highSeverityCount.toLocaleString(), desc: "매우 높음/높음 등급 시점" },
         { name: "Threshold 상태", value: strictText, desc: `${result.options.threshold.toFixed(1)} percentile 기준` },
         { name: "집계 방식", value: result.options.aggregate === "max" ? "OR" : "Mean", desc: "다변량 점수 결합 방식" },
@@ -2732,7 +2808,8 @@
         return;
       }
       const vars = state.result.vars;
-      const header = ["time", "score", "severity", "contributing_variables", ...vars];
+      const hasLabel = Boolean(state.model?.profile?.labelCol);
+      const header = ["time", "score", "severity", "contributing_variables", ...(hasLabel ? ["true_label"] : []), ...vars];
       const lines = [header.map(csvEscape).join(",")];
       state.result.anomalyRows.forEach(row => {
         const values = [
@@ -2740,6 +2817,7 @@
           fmt(row.score, 6),
           severityLabel(row.score, state.result),
           row.variables.join("|"),
+          ...(hasLabel ? [state.model.groundTruth[row.index] === null ? "" : Number(state.model.groundTruth[row.index])] : []),
           ...vars.map(v => row.values[v])
         ];
         lines.push(values.map(csvEscape).join(","));
@@ -2795,6 +2873,17 @@
         .slice()
         .sort((a, b) => b.count - a.count)
         .map(c => `- ${c.label}: ${c.count.toLocaleString()}개 (${pct(c.ratio)})`);
+      const labelEvalLines = result.groundTruthEval ? [
+        `- 라벨 컬럼: ${p.labelCol}`,
+        `- 라벨 관측치: ${result.groundTruthEval.labeledCount.toLocaleString()}개`,
+        `- Precision: ${pct(result.groundTruthEval.precision)}`,
+        `- Recall: ${pct(result.groundTruthEval.recall)}`,
+        `- F1 score: ${pct(result.groundTruthEval.f1)}`,
+        `- Accuracy: ${pct(result.groundTruthEval.accuracy)}`,
+        `- Confusion matrix: TP ${result.groundTruthEval.tp}, FP ${result.groundTruthEval.fp}, TN ${result.groundTruthEval.tn}, FN ${result.groundTruthEval.fn}`
+      ] : [
+        "- 정답 라벨 컬럼 없음: label/anomaly/is_anomaly/fault/target 등의 컬럼이 있으면 Precision, Recall, F1을 자동 계산합니다."
+      ];
       const statLines = result.vars.map(v => {
         const s = model.stats.find(item => item.name === v);
         if (!s) return `- ${v}: 통계량 없음`;
@@ -2822,6 +2911,7 @@
         `- 샘플링 주기: ${p.freq.label}`,
         `- 숫자형 변수: ${p.numericCols.join(", ")}`,
         `- 분석 변수: ${result.vars.join(", ")}`,
+        `- 정답 라벨 컬럼: ${p.labelCol || "없음"}`,
         `- 결측치: ${p.missingTotal.toLocaleString()}개 (${pct(p.missingRate)})`,
         `- 중복: 행 ${p.duplicateRows.toLocaleString()}개, 시간 ${p.duplicateTime.toLocaleString()}개`,
         "",
@@ -2842,16 +2932,19 @@
         `- Threshold 판단: ${thresholdAdvice(result)}. ${thresholdAdviceDetail(result)}`,
         `- 검토 우선순위: ${reviewPriority(result)}`,
         "",
-        "[4] 변수별 기본 분석",
+        "[4] 라벨 기반 평가",
+        ...labelEvalLines,
+        "",
+        "[5] 변수별 기본 분석",
         ...statLines,
         "",
-        "[5] 모델별 탐지 비율 비교",
+        "[6] 모델별 탐지 비율 비교",
         ...(compareLines.length ? compareLines : ["- 비교 결과 없음"]),
         "",
-        "[6] 고점수 이상 시점 TOP 10",
+        "[7] 고점수 이상 시점 TOP 10",
         ...anomalyLines,
         "",
-        "[7] 해석 메모",
+        "[8] 해석 메모",
         `- ${variableInterpretation(topVars, count)}`,
         "- 실제 이상 여부는 원본 시계열 그래프에서 값의 급등락, 결측 또는 중복 시점, 주변 시점의 연속성, 변수 간 동시 변화를 함께 확인해 판단합니다."
       ].join("\n");
